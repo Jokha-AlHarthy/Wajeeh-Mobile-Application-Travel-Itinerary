@@ -2,7 +2,7 @@
 
 
 ## 🧭 Project Overview
-Wajeeh is a mobile application that generates personalized travel itineraries for Oman and GCC destinations, integrating AI-powered recommendations, multilingual translation, cultural & heritage exploration, and offline navigation. The system helps travelers choose hotels, restaurants, heritage sites, transportation, souvenirs, and more—based on their budget, duration of stay, and preferences.
+Wajeeh is a mobile application that generates personalized travel itineraries for Oman and GCC destinations, integrating AI-powered recommendations, multilingual translation, cultural & heritage exploration, and offline navigation. The system helps travelers choose hotels, restaurants, heritage sites, transportation, souvenirs, and more based on their budget, duration of stay, and preferences.
 
 The project supports Oman Vision 2040 goals through digital transformation, tourism innovation, and smarter travel experiences.
 
