@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "525840946526",
+    "firebase_url": "https://wajeeh-app-b0c2b-default-rtdb.firebaseio.com",
+    "project_id": "wajeeh-app-b0c2b",
+    "storage_bucket": "wajeeh-app-b0c2b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:525840946526:android:fc7a95a7793eef360debcf",
+        "android_client_info": {
+          "package_name": "com.wajeeh.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "525840946526-o4io1jsb3renbe7drttfmv3t5oka1ng0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.wajeeh.app",
+            "certificate_hash": "3b4186ef1dabc1bfb90ddd8e66a5aa6039e2c940"
+          }
+        },
+        {
+          "client_id": "525840946526-i7o1j341nhgfqajphunnhvbrh7qgd8c9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAYXPdEB-q0RiEq8gRsF6vUG66QPwaVfs4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "525840946526-i7o1j341nhgfqajphunnhvbrh7qgd8c9.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "525840946526-1g7c0lrg719ihn5qh4876epgq85kjtbu.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.gradu.rayan"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
