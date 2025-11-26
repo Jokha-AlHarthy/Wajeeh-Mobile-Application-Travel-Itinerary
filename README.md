@@ -50,15 +50,6 @@ The project supports Oman Vision 2040 goals through digital transformation, tour
 | **Contributors**| Rayan Al-Rawahi & Nairoz Al-Alwai                                      |
 | **Supervisor**| Ruel Micheal                                                             |
 
-
-## 📱 Run the Flutter App
-- Install Flutter (version 3.x or above)
-- Open the project in VS Code or Android Studio
-- cd folder
-- flutter pub get
-- Connect an Android device or emulator
-- flutter run
-
 ## 📂 Folder Structure
 ```
 ├── android/                      # Native Android project files
@@ -85,5 +76,15 @@ The project supports Oman Vision 2040 goals through digital transformation, tour
 ├── .gitignore                    # Ignored files for version control
 └── README.md                     # Project documentation
 ```
+
+## 📱 Run the Flutter App
+- Install Flutter (version 3.x or above)
+- Open the project in VS Code or Android Studio
+- cd folder
+- flutter pub get
+- Connect an Android device or emulator
+- flutter run
+
+
 
 
