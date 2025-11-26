@@ -6,7 +6,7 @@ Wajeeh is a mobile application that generates personalized travel itineraries fo
 
 The project supports Oman Vision 2040 goals through digital transformation, tourism innovation, and smarter travel experiences.
 
-##🔑 Key Features
+## 🔑 Key Features
 **Trip Planning:**
 - Select hotels, transportation, restaurants, souvenirs, cultural sites, and heritage attractions
 - AI-based suggestions according to budget & duration
