@@ -80,10 +80,10 @@ The project supports Oman Vision 2040 goals through digital transformation, tour
 ## 📱 Run the Flutter App
 - Install Flutter (version 3.x or above)
 - Open the project in VS Code or Android Studio
-- cd folder
-- flutter pub get
+- Cd folder that you download it
+- Terminal: flutter pub get
 - Connect an Android device or emulator
-- flutter run
+- Terminal: flutter run
 
 
 
