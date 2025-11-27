@@ -50,9 +50,41 @@ The project supports Oman Vision 2040 goals through digital transformation, tour
 | **Contributors**| Rayan Al-Rawahi & Nairoz Al-Alwai                                      |
 | **Supervisor**| Ruel Micheal                                                             |
 
+## 📂 Folder Structure
+```
+├── android/                      # Native Android project files
+│
+├── lib/                          # Main Flutter application source code
+│   ├── pages/                    # All UI screens (onboarding, auth, home, etc.)
+│   ├── providers/                # State management using Provider
+│   ├── services/                 # App backend services (Firebase, API helpers, auth logic)
+│   ├── widgets/                  # Reusable UI components
+│   ├── app_theme.dart            # App color theme & styles
+│   ├── firebase_options.dart     # Firebase initialization (auto-generated)
+│   └── main.dart                 # Application entry point
+│
+├── functions/                    # Firebase Cloud Functions (backend)
+│   ├── index.js                  # Main cloud function
+│   ├── package.json              # Dependencies
+│   └── package-lock.json
+│
+├── images/                       # Image assets used throughout the UI
+│
+├── pubspec.yaml                  # Flutter dependencies & assets config
+├── firebase.json                 # Firebase tools config
+├── .firebaserc                   # Firebase project reference
+├── .gitignore                    # Ignored files for version control
+└── README.md                     # Project documentation
+```
 
 ## 📱 Run the Flutter App
-- cd folder
-- flutter pub get
-- flutter run
+- Install Flutter (version 3.x or above)
+- Open the project in VS Code or Android Studio
+- Cd folder that you download it
+- Terminal: flutter pub get
+- Connect an Android device or emulator
+- Terminal: flutter run
+
+
+
 
