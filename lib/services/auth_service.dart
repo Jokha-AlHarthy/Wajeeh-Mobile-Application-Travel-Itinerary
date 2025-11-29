@@ -45,7 +45,6 @@ class AuthService {
   }
 
   /// GOOGLE LOGIN
-  /// GOOGLE LOGIN
   Future<User?> signInWithGoogle() async {
     final google = GoogleSignIn();
 
@@ -58,6 +57,23 @@ class AuthService {
 
     final googleAuth = await googleUser.authentication;
 
+    final existingUser = await _db
+        .collection("users")
+        .where("email", isEqualTo: googleUser.email)
+        .limit(1)
+        .get();
+
+    // Existing user → Login only (NO register, NO OTP)
+    if (existingUser.docs.isNotEmpty) {
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
+      );
+      final loginCred = await _auth.signInWithCredential(credential);
+      return loginCred.user;
+    }
+
+    // New user → Register + OTP flow
     final credential = GoogleAuthProvider.credential(
       idToken: googleAuth.idToken,
       accessToken: googleAuth.accessToken,
@@ -67,20 +83,18 @@ class AuthService {
     final user = userCred.user;
 
     if (user != null) {
-      // 🔥 SAVE TO FIRESTORE (important!)
       await _db.collection('users').doc(user.uid).set({
         "uid": user.uid,
         "email": user.email,
         "fullName": user.displayName ?? "",
         "phone": "",
-        "authProvider": "google",       // ← IMPORTANT!
+        "authProvider": "google",
         "createdAt": FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));        // use merge so it doesn’t overwrite
+      }, SetOptions(merge: true));
     }
 
     return user;
   }
-
 
 
   /// RESET PASSWORD
