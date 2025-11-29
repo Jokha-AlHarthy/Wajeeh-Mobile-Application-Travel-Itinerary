@@ -141,7 +141,7 @@ class AuthProvider extends ChangeNotifier {
       isLoading = true;
       notifyListeners();
 
-      print("🔍 Searching in Firestore for email: $email");
+      print("Searching in Firestore for email: $email");
 
       final query = await FirebaseFirestore.instance
           .collection('users')
@@ -171,8 +171,6 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
-
 
   /// LOGOUT
   Future<void> logout() async {
