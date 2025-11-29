@@ -96,8 +96,7 @@ class _RegisterPageState extends State<RegisterPage> {
               ),
 
               const SizedBox(height: 12),
-
-              // ⭐ PASSWORD WITH EYE ICON
+              
               CustomTextField(
                 hint: "Password",
                 controller: password,
@@ -118,7 +117,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
               const SizedBox(height: 12),
 
-              // ⭐ CONFIRM PASSWORD WITH EYE ICON
               CustomTextField(
                 hint: "Confirm password",
                 controller: confirmPassword,
@@ -221,6 +219,10 @@ class _RegisterPageState extends State<RegisterPage> {
                       phone: phone.text.trim(),
                     );
 
+                    print("REGISTER RESULT: $ok");
+                    print("ERROR: ${auth.error}");
+                    print("OTP EMAIL: ${auth.otpEmail}");
+
                     if (!mounted) return;
 
                     if (ok) {
@@ -285,11 +287,20 @@ class _RegisterPageState extends State<RegisterPage> {
                     ? null
                     : () async {
                   final ok = await auth.googleLogin();
+
+                  print("GOOGLE OK: $ok");
+                  print("GOOGLE ERROR: ${auth.error}");
+                  print("GOOGLE OTP EMAIL: ${auth.otpEmail}");
+
                   if (ok) {
                     Navigator.pushReplacementNamed(
                       context,
                       "/otp",
                       arguments: auth.otpEmail,
+                    );
+                  } else if (auth.error != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(auth.error!)),
                     );
                   }
                 },
