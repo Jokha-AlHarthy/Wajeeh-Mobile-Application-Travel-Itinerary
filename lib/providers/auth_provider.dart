@@ -13,6 +13,10 @@ class AuthProvider extends ChangeNotifier {
   String? _otpEmail;
   String? get otpEmail => _otpEmail;
 
+  String? fullName;
+  String? email;
+  String? phone;
+
   /// LOGIN
   Future<bool> login(String email, String password) async {
     try {
@@ -20,6 +24,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       await _auth.login(email, password);
+      await loadUserProfile();
       return true;
     } catch (e) {
       error = _messageFromError(e);
@@ -104,7 +109,7 @@ class AuthProvider extends ChangeNotifier {
       error = "Wrong OTP.";
       return false;
     }
-
+    await loadUserProfile();
     return true;
   }
 
@@ -124,7 +129,7 @@ class AuthProvider extends ChangeNotifier {
 
       // send OTP email
       await _auth.sendOtpEmail(_otpEmail!, _generatedOtp!);
-
+      await loadUserProfile();
       return true;
     } catch (e) {
       error = _messageFromError(e);
@@ -169,6 +174,37 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  /// to load data after login
+  Future<void> loadUserProfile() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        fullName =
+            (data['fullName'] ?? data['username'] ?? user.displayName ?? '')
+                .toString();
+        email = (data['email'] ?? user.email ?? '').toString();
+        phone = (data['phone'] ?? '').toString();
+      } else {
+        fullName = user.displayName ?? '';
+        email = user.email ?? '';
+        phone = '';
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('loadUserProfile error: $e');
     }
   }
 
