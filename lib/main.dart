@@ -5,7 +5,7 @@ import 'firebase_options.dart';
 import 'providers/auth_provider.dart';
 import 'pages/login_page.dart';
 import 'pages/register_page.dart';
-import 'pages/home_page.dart';
+import 'pages/HomePage.dart';
 import 'pages/forgot_password_page.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:provider/provider.dart';
@@ -18,6 +18,9 @@ import 'pages/PrivacyPolicyPage.dart';
 import 'pages/OtpVerificationPage.dart';
 import 'pages/Location_page.dart';
 import 'pages/Language_page.dart';
+import 'pages/SettingPage.dart';
+import 'pages/SearchPage.dart';
+import 'pages/ChangePass.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +53,9 @@ class MyApp extends StatelessWidget {
           "/language":(_)=> const LanguageSelectionPage(),
           "/location": (_) => const LocationSelectionPage(),
           "/otp": (_) => const OtpVerificationPage(),
+          "/search": (_) => const SearchPage(),
+          "/setting": (_) => const SettingPage(),
+          "/ChangePass": (_) => const ChangePass(),
         },
       ),
     );
