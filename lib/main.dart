@@ -21,6 +21,8 @@ import 'pages/Language_page.dart';
 import 'pages/SettingPage.dart';
 import 'pages/SearchPage.dart';
 import 'pages/ChangePass.dart';
+import 'pages/AdminHomePage.dart';
+import 'pages/AdminProfilePage.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +58,8 @@ class MyApp extends StatelessWidget {
           "/search": (_) => const SearchPage(),
           "/setting": (_) => const SettingPage(),
           "/ChangePass": (_) => const ChangePass(),
+          "/adminHome": (_) => const AdminHomePage(),
+          "/adminProfile": (_) => const AdminProfilePage(),
         },
       ),
     );
