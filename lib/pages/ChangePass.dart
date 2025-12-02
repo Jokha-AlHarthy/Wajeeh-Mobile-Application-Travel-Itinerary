@@ -17,6 +17,11 @@ class _ChangePassState extends State<ChangePass> {
 
   bool _isLoading = false;
 
+  // show / hide state
+  bool _showOld = false;
+  bool _showNew = false;
+  bool _showConfirm = false;
+
   static const Color cream = Color(0xffF7F1E8);
   static const Color darkBlue = Color(0xFF0C1C3D);
 
@@ -26,6 +31,15 @@ class _ChangePassState extends State<ChangePass> {
     _newPassController.dispose();
     _confirmPassController.dispose();
     super.dispose();
+  }
+
+  bool isPasswordStrong(String password) {
+    if (password.length < 8) return false;
+    if (!password.contains(RegExp(r'[A-Z]'))) return false;
+    if (!password.contains(RegExp(r'[a-z]'))) return false;
+    if (!password.contains(RegExp(r'[0-9]'))) return false;
+    if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) return false;
+    return true;
   }
 
   Future<void> _changePassword() async {
@@ -42,24 +56,31 @@ class _ChangePassState extends State<ChangePass> {
     final oldPass = _oldPassController.text.trim();
     final newPass = _newPassController.text.trim();
 
+    if (!isPasswordStrong(newPass)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Password must be at least 8 chars and include upper, lower, number, and special character.',
+          ),
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
-      // 1) Re-authenticate with old password
       final credential = EmailAuthProvider.credential(
         email: user.email!,
         password: oldPass,
       );
       await user.reauthenticateWithCredential(credential);
-
-      // 2) Update password in Firebase Authentication
       await user.updatePassword(newPass);
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password changed successfully')),
       );
-
-      Navigator.pop(context); // back to Settings page
+      Navigator.pop(context);
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message ?? 'Failed to change password')),
@@ -85,7 +106,7 @@ class _ChangePassState extends State<ChangePass> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // TOP BAR: back arrow + logo
+                /// top bar
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -94,13 +115,13 @@ class _ChangePassState extends State<ChangePass> {
                       onPressed: () => Navigator.pop(context),
                     ),
                     Image.asset("images/logo.png", height: 40),
-                    const SizedBox(width: 40), // to balance the row
+                    const SizedBox(width: 40),
                   ],
                 ),
 
                 const SizedBox(height: 40),
 
-                // TITLE + SUBTITLE
+                /// title
                 const Center(
                   child: Column(
                     children: [
@@ -127,7 +148,7 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 32),
 
-                // OLD PASSWORD
+                /// OLD PASSWORD
                 const Text(
                   "Old Password",
                   style: TextStyle(
@@ -139,8 +160,21 @@ class _ChangePassState extends State<ChangePass> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _oldPassController,
-                  obscureText: true,
-                  decoration: _inputDecoration("Enter old password"),
+                  obscureText: !_showOld,
+                  decoration: _inputDecoration(
+                    "Enter old password",
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showOld
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: darkBlue,
+                      ),
+                      onPressed: () {
+                        setState(() => _showOld = !_showOld);
+                      },
+                    ),
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter your old password';
@@ -151,7 +185,7 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 18),
 
-                // NEW PASSWORD
+                /// NEW PASSWORD
                 const Text(
                   "New Password",
                   style: TextStyle(
@@ -163,16 +197,30 @@ class _ChangePassState extends State<ChangePass> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _newPassController,
-                  obscureText: true,
-                  decoration: _inputDecoration("Enter new password"),
+                  obscureText: !_showNew,
+                  decoration: _inputDecoration(
+                    "Enter new password",
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showNew
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: darkBlue,
+                      ),
+                      onPressed: () {
+                        setState(() => _showNew = !_showNew);
+                      },
+                    ),
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please enter a new password';
                     }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
+                    if (!isPasswordStrong(value)) {
+                      return 'Must be 8+ chars, include upper, lower, number, and special symbol';
                     }
-                    if (value == _oldPassController.text.trim()) {
+                    if (value.trim() ==
+                        _oldPassController.text.trim()) {
                       return 'New password must be different from old password';
                     }
                     return null;
@@ -181,7 +229,7 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 18),
 
-                // CONFIRM PASSWORD
+                /// CONFIRM PASSWORD
                 const Text(
                   "Confirm Password",
                   style: TextStyle(
@@ -193,13 +241,27 @@ class _ChangePassState extends State<ChangePass> {
                 const SizedBox(height: 6),
                 TextFormField(
                   controller: _confirmPassController,
-                  obscureText: true,
-                  decoration: _inputDecoration("Confirm your password"),
+                  obscureText: !_showConfirm,
+                  decoration: _inputDecoration(
+                    "Confirm your password",
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _showConfirm
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: darkBlue,
+                      ),
+                      onPressed: () {
+                        setState(() => _showConfirm = !_showConfirm);
+                      },
+                    ),
+                  ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Please confirm your password';
                     }
-                    if (value.trim() != _newPassController.text.trim()) {
+                    if (value.trim() !=
+                        _newPassController.text.trim()) {
                       return 'Passwords do not match';
                     }
                     return null;
@@ -208,7 +270,7 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 32),
 
-                // SAVE BUTTON
+                /// SAVE BUTTON
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -246,11 +308,12 @@ class _ChangePassState extends State<ChangePass> {
     );
   }
 
-  InputDecoration _inputDecoration(String hint) {
+  InputDecoration _inputDecoration(String hint, {Widget? suffixIcon}) {
     return InputDecoration(
       hintText: hint,
       filled: true,
       fillColor: Colors.white,
+      suffixIcon: suffixIcon,
       contentPadding:
       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       border: OutlineInputBorder(
