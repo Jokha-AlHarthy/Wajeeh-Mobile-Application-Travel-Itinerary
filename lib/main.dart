@@ -23,6 +23,18 @@ import 'pages/SearchPage.dart';
 import 'pages/ChangePass.dart';
 import 'pages/AdminHomePage.dart';
 import 'pages/AdminProfilePage.dart';
+import 'pages/ai_trip_screen.dart';
+import 'pages/ai_trip_step1_screen.dart';
+import 'pages/ai_trip_step2_screen.dart';
+import 'pages/ai_trip_step3_screen.dart';
+import 'pages/ai_trip_step4_screen.dart';
+import 'pages/ai_trip_step5_screen.dart';
+import 'pages/ai_trip_review_screen.dart';
+import 'pages/ai_trip_loading.dart';
+import 'pages/ai_trip_overview_list.dart';
+//import 'pages/ai_trip_details_plan.dart';
+import 'pages/user_feedback_screen.dart';
+import 'pages/notifications_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,6 +72,18 @@ class MyApp extends StatelessWidget {
           "/ChangePass": (_) => const ChangePass(),
           "/adminHome": (_) => const AdminHomePage(),
           "/adminProfile": (_) => const AdminProfilePage(),
+          "/ai_trip": (_) => const AiTripScreen(),
+          "/ai_trip_step1":(_)=>const AiTripStep1Screen(),
+          "/ai_trip_step2":(_)=>const AiTripStep2Screen(),
+          "/ai_trip_step3":(_)=>const AiTripStep3Screen(),
+          "/ai_trip_step4":(_)=>const AiTripStep4Screen(),
+          "/ai_trip_step5":(_)=>const AiTripStep5Screen(),
+          "/ai_trip_review":(_)=>const ReviewSummaryScreen(),
+          "/ai_trip_loading":(_)=>const TripLoadingDialog(),
+          "/ai_trip_overview_list":(_)=>const TripOverviewScreen(),
+          //"ai_trip_details_plan":(_)=>const TripDetailsScreen(),
+          "user_feedback":(_)=>const UserFeedbackScreen(),
+          "notifications":(_)=>const NotificationsScreen(),
         },
       ),
     );
