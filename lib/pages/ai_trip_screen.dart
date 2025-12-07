@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'ai_trip_step1_screen.dart';
 import 'notifications_screen.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
-//import 'trip_plan.dart';
+import "trip_planning_screen.dart";
 
 class AiTripScreen extends StatefulWidget {
   const AiTripScreen({super.key});
@@ -122,7 +122,14 @@ class _AiTripScreenState extends State<AiTripScreen> {
                         children: [
                           Expanded(
                             child: GestureDetector(
-                              onTap: () => navigate(false),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const TripPlanningScreen(),
+                                  ),
+                                );
+                              },
                               child: Center(
                                 child: Text(
                                   "Trip Planning",
