@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import 'package:wajeeh/widgets/app_footer.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -30,7 +31,41 @@ class HomePage extends StatelessWidget {
                     child: Icon(Icons.person, color: Colors.white),
                   ),
                   Image.asset("images/logo.png", height: 40),
-                  const Icon(Icons.notifications_outlined, color: darkBlue),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pushNamed(context, '/notifications');
+                    },
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(
+                          Icons.notifications,
+                          size: 28,
+                          color: darkBlue,
+                        ),
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text(
+                              "3",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 ],
               ),
 
@@ -145,61 +180,7 @@ class HomePage extends StatelessWidget {
       ),
 
       // =================== CUSTOM FOOTER =================== //
-      bottomNavigationBar: Container(
-        color: cream,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                onPressed: () {
-                  // TODO: Home tap
-                },
-                icon: const Icon(Icons.home_filled, color: darkBlue),
-              ),
-              IconButton(
-                onPressed: () {
-                  // TODO: Compass tap
-                },
-                icon: Icon(Icons.explore_outlined,
-                    color: Colors.grey.shade700),
-              ),
-              // Center circular button
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: darkBlue,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  onPressed: () {
-                    // TODO: Center arrow tap
-                  },
-                  icon: const Icon(Icons.send_rounded,
-                      color: Colors.white, size: 22),
-                ),
-              ),
-              IconButton(
-                onPressed: () {
-                  // TODO: Heart tap
-                },
-                icon: Icon(Icons.favorite_border,
-                    color: Colors.grey.shade700),
-              ),
-              IconButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/setting');
-                },
-                icon: Icon(Icons.group_outlined,
-                    color: Colors.grey.shade700),
-              ),
-            ],
-          ),
-        ),
-      ),
+      bottomNavigationBar: const AppFooter(currentIndex: 0),
     );
   }
 }
@@ -257,8 +238,12 @@ class _PlaceCard extends StatelessWidget {
     required this.price,
   });
 
+  static const cream = Color(0xFFF7F1E8);
+
   @override
   Widget build(BuildContext context) {
+    const darkBlue = Color(0xFF0C1C3D);
+
     return Container(
       height: 220,
       decoration: BoxDecoration(
@@ -269,6 +254,7 @@ class _PlaceCard extends StatelessWidget {
         ),
       ),
       child: Stack(
+        clipBehavior: Clip.none,
         children: [
           // dark overlay
           Container(
@@ -278,7 +264,7 @@ class _PlaceCard extends StatelessWidget {
             ),
           ),
 
-          // top row
+          // top row (country + rating + fav)
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
@@ -305,50 +291,67 @@ class _PlaceCard extends StatelessWidget {
             ),
           ),
 
-          // bottom info
+          // bottom info card
           Positioned(
             left: 14,
-            right: 14,
+            right: 34,
             bottom: 14,
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0C1C3D),
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          price,
-                          style: const TextStyle(
-                            color: Color(0xFFF89C1B),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: darkBlue,
+                      fontSize: 16,
                     ),
                   ),
+                  const SizedBox(height: 6),
+                  Text(
+                    price,
+                    style: const TextStyle(
+                      color: Color(0xFFF89C1B),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+
+          Positioned(
+            right: -23,
+            bottom: -7,
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: const BoxDecoration(
+                color: cream,
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: const BoxDecoration(
+                    color: darkBlue,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.north_east,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
-                const SizedBox(width: 12),
-                const CircleAvatar(
-                  radius: 26,
-                  backgroundColor: Color(0xFF0C1C3D),
-                  child: Icon(Icons.arrow_forward, color: Colors.white),
-                ),
-              ],
+              ),
             ),
           ),
         ],
