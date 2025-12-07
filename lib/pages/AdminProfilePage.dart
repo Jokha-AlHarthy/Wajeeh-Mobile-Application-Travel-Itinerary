@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart' as app_auth;
 import 'ChangePass.dart';
+import '../widgets/admin_footer.dart';
+
 
 class AdminProfilePage extends StatefulWidget {
   const AdminProfilePage({super.key});
@@ -230,7 +232,7 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
           ),
         ),
       ),
-      bottomNavigationBar: _footer(context),
+      bottomNavigationBar: const AdminFooter(),
     );
   }
 
