@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb_auth;
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
 
 class SearchPage extends StatelessWidget {
   const SearchPage({super.key});
@@ -11,6 +9,8 @@ class SearchPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final user = fb_auth.FirebaseAuth.instance.currentUser;
 
+    const darkBlue = Color(0xFF0C1C3D);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -18,17 +18,43 @@ class SearchPage extends StatelessWidget {
         centerTitle: true,
         title: Image.asset("images/logo.png", height: 40),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black),
-            onPressed: () async {
-              await context.read<AuthProvider>().logout();
-              if (!context.mounted) return;
-              Navigator.pushReplacementNamed(context, '/login'); // same nav as new page
+          // ✅ نفس أيقونة الإشعار الموجودة في HomePage
+          GestureDetector(
+            onTap: () {
+              Navigator.pushNamed(context, '/notifications');
             },
-          ),
-          const Padding(
-            padding: EdgeInsets.only(right: 16),
-            child: Icon(Icons.notifications_outlined, color: Colors.black),
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(
+                    Icons.notifications,
+                    size: 28,
+                    color: darkBlue,
+                  ),
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Text(
+                        "3",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
@@ -40,7 +66,6 @@ class SearchPage extends StatelessWidget {
             .snapshots()
             : null,
         builder: (context, snapshot) {
-          // using 'username' like your new page (fallback to 'User')
           final userName = snapshot.data?.data()?['username'] as String?;
 
           return SingleChildScrollView(
