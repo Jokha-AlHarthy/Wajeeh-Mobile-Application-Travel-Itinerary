@@ -35,6 +35,8 @@ import 'pages/ai_trip_overview_list.dart';
 //import 'pages/ai_trip_details_plan.dart';
 import 'pages/user_feedback_screen.dart';
 import 'pages/notifications_screen.dart';
+import 'pages/language_screen.dart';
+import 'pages/profile_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -82,8 +84,10 @@ class MyApp extends StatelessWidget {
           "/ai_trip_loading":(_)=>const TripLoadingDialog(),
           "/ai_trip_overview_list":(_)=>const TripOverviewScreen(),
           //"ai_trip_details_plan":(_)=>const TripDetailsScreen(),
-          "user_feedback":(_)=>const UserFeedbackScreen(),
-          "notifications":(_)=>const NotificationsScreen(),
+          "/user_feedback":(_)=>const UserFeedbackScreen(),
+          "/notifications":(_)=>const NotificationsScreen(),
+          "/languagePreference":(_)=> const LanguageScreen(),
+          "/profile":(_)=> const ProfileScreen(),
         },
       ),
     );
