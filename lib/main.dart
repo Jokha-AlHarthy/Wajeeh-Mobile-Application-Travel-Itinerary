@@ -37,6 +37,9 @@ import 'pages/user_feedback_screen.dart';
 import 'pages/notifications_screen.dart';
 import 'pages/language_screen.dart';
 import 'pages/profile_screen.dart';
+import 'pages/trip_planning_screen.dart';
+//import 'pages/trip_detail_screen.dart';
+//import 'pages/rate_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,11 +86,14 @@ class MyApp extends StatelessWidget {
           "/ai_trip_review":(_)=>const ReviewSummaryScreen(),
           "/ai_trip_loading":(_)=>const TripLoadingDialog(),
           "/ai_trip_overview_list":(_)=>const TripOverviewScreen(),
-          //"ai_trip_details_plan":(_)=>const TripDetailsScreen(),
+          //"/ai_trip_details_plan":(_)=>const TripDetailsScreen(),
           "/user_feedback":(_)=>const UserFeedbackScreen(),
           "/notifications":(_)=>const NotificationsScreen(),
           "/languagePreference":(_)=> const LanguageScreen(),
           "/profile":(_)=> const ProfileScreen(),
+          "/trip_planning":(_)=>const TripPlanningScreen(),
+          //"/trip_detail":(_)=>const TripDetailScreen(),
+          //"/rate":(_)=>const RateScreen(),
         },
       ),
     );
