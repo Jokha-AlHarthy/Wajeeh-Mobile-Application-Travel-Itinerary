@@ -70,10 +70,12 @@ class AppFooter extends StatelessWidget {
             // HEART
             IconButton(
               onPressed: () {
-                // TODO Heart action
+                if (currentIndex != 3) {
+                  Navigator.pushReplacementNamed(context, '/favorite');
+                }
               },
               icon: Icon(
-                Icons.favorite_border,
+                currentIndex == 3 ? Icons.favorite : Icons.favorite_border,
                 color: currentIndex == 3 ? darkBlue : Colors.grey.shade700,
               ),
             ),
@@ -96,3 +98,4 @@ class AppFooter extends StatelessWidget {
     );
   }
 }
+
