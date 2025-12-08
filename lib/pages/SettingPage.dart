@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import 'package:wajeeh/widgets/app_footer.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../providers/auth_provider.dart' as myAuth;
+
 
 class SettingPage extends StatelessWidget {
   const SettingPage({super.key});
@@ -10,7 +13,7 @@ class SettingPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
+    final auth = Provider.of<myAuth.AuthProvider>(context);
 
     // LOAD FROM YOUR PROVIDER
     final String name = auth.fullName ?? "User";
@@ -27,9 +30,10 @@ class SettingPage extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  SizedBox(width: 40),
-                  Text(
+                children: [
+                  const SizedBox(width: 40),
+
+                  const Text(
                     "Setting",
                     style: TextStyle(
                       fontSize: 20,
@@ -37,22 +41,60 @@ class SettingPage extends StatelessWidget {
                       color: darkBlue,
                     ),
                   ),
-                  Icon(Icons.notifications_active_outlined, color: darkBlue),
+
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.pushNamed(context, '/notifications');
+                    },
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        const Icon(
+                          Icons.notifications,
+                          size: 28,
+                          color: darkBlue,
+                        ),
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: const BoxDecoration(
+                              color: Colors.red,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Text(
+                              "3",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
 
+
             const SizedBox(height: 16),
 
-            // USER INFO ---------------------
+            // USER INFO
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
                   const CircleAvatar(
-                    radius: 26,
-                    backgroundColor: Colors.amber,
-                    child: Icon(Icons.person, color: Colors.white),
+                    radius: 40,
+                    backgroundColor: Colors.white,
+                    child: CircleAvatar(
+                      radius: 36,
+                      backgroundImage: AssetImage("images/user.png"),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Column(
@@ -87,7 +129,10 @@ class SettingPage extends StatelessWidget {
               child: Text("Personal Info",
                   style: TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.bold)),
             ),
-            _settingTile(icon: Icons.person, title: "Profile"),
+            _settingTile(icon: Icons.person, title: "Profile",
+            onTap: () {
+              Navigator.pushNamed(context, '/profile');
+            }),
 
             // SECURITY
             const Padding(
@@ -115,8 +160,15 @@ class SettingPage extends StatelessWidget {
               child: Text("General",
                   style: TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.bold)),
             ),
-            _settingTile(icon: Icons.translate, title: "Language"),
-            _settingTile(icon: Icons.chat_bubble_outline, title: "Feedback"),
+            _settingTile(icon: Icons.translate, title: "Language",
+              onTap: () {
+                Navigator.pushNamed(context, '/languagePreference');
+              },
+              ),
+            _settingTile(icon: Icons.chat_bubble_outline, title: "Feedback",
+              onTap: () {
+                Navigator.pushNamed(context, '/user_feedback');
+              },),
 
             // ABOUT
             const Padding(
@@ -142,10 +194,9 @@ class SettingPage extends StatelessWidget {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                   ),
-                  onPressed: () async {
-                    await auth.logout();
-                    Navigator.pushReplacementNamed(context, '/login');
-                  },
+                  onPressed: () =>
+                    _showLogoutDialog(context),
+
                   child: const Text(
                     "Log Out",
                     style: TextStyle(
@@ -157,55 +208,80 @@ class SettingPage extends StatelessWidget {
           ],
         ),
       ),
-
-      // FOOTER (same)
-      bottomNavigationBar: Container(
-        color: cream,
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-        child: SafeArea(
-          top: false,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              IconButton(
-                  onPressed: () {
-                    Navigator.pushReplacementNamed(context, '/home');
-                  },
-                  icon:
-                  const Icon(Icons.home_filled, color: darkBlue)),
-              IconButton(
-                onPressed: () {},
-                icon: Icon(Icons.explore_outlined,
-                    color: Colors.grey.shade700),
-              ),
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: darkBlue,
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.send_rounded,
-                      color: Colors.white, size: 22),
-                ),
-              ),
-              IconButton(
-                onPressed: () {},
-                icon: Icon(Icons.favorite_border,
-                    color: Colors.grey.shade700),
-              ),
-              IconButton(
-                onPressed: () {},
-                icon: const Icon(Icons.group_outlined, color: darkBlue),
-              ),
-            ],
-          ),
-        ),
-      ),
+      bottomNavigationBar: const AppFooter(currentIndex: 4),
     );
   }
+}
+
+void _showLogoutDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => Dialog(
+      shape:
+      RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF7F1E8),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Are you sure you want\nto logout?",
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF0C1C3D),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () async {
+                  await FirebaseAuth.instance.signOut();
+                  if (!context.mounted) return;
+                  Navigator.pushNamedAndRemoveUntil(
+                      context, "/login", (_) => false);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding:
+                  const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text("Log Out",
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0C1C3D),
+                  padding:
+                  const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text("Cancel",
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 // Reusable tile
