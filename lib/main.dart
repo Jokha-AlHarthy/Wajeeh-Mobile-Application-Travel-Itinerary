@@ -40,6 +40,10 @@ import 'pages/profile_screen.dart';
 import 'pages/trip_planning_screen.dart';
 //import 'pages/trip_detail_screen.dart';
 //import 'pages/rate_screen.dart';
+import 'pages/FavoritePage.dart';
+
+
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -94,6 +98,8 @@ class MyApp extends StatelessWidget {
           "/trip_planning":(_)=>const TripPlanningScreen(),
           //"/trip_detail":(_)=>const TripDetailScreen(),
           //"/rate":(_)=>const RateScreen(),
+          "/favorite":(_)=> const FavoritePage(),
+
         },
       ),
     );
