@@ -115,7 +115,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: () {
-                              // فقط عرضي – ما في backend
+                              // backend 
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: darkBlue,
@@ -423,3 +423,4 @@ class _TableActionCell extends StatelessWidget {
     );
   }
 }
+
