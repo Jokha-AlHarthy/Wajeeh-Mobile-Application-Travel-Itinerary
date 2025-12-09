@@ -3,9 +3,229 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  double priceValue = 50;
+
+  final List<String> filterOptions = [
+    "Hotels & Stays",
+    "Food & Restaurants",
+    "Transportation",
+    "Culture & Heritage",
+    "Shopping & Souvenirs",
+  ];
+
+  List<String> selectedFilters = [];
+
+  void toggleFilter(String label) {
+    setState(() {
+      selectedFilters.contains(label)
+          ? selectedFilters.remove(label)
+          : selectedFilters.add(label);
+    });
+  }
+
+  // ================= FILTER SHEET ================= //
+  void showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 60,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  const Center(
+                    child: Text(
+                      "Filter Service",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0C1C3D),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  const Text(
+                    "Locations",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0C1C3D),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Container(
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade400),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: const [
+                        Text(
+                          "Dubai, United Arab Emirates",
+                          style:
+                          TextStyle(color: Colors.black87, fontSize: 15),
+                        ),
+                        Icon(Icons.location_on_outlined,
+                            color: Color(0xFF0C1C3D)),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  const Text(
+                    "Popular Filters",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0C1C3D),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 12,
+                    children: filterOptions.map((label) {
+                      final isSelected = selectedFilters.contains(label);
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() => toggleFilter(label));
+                          setSheetState(() {});
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color:
+                            isSelected ? const Color(0xFF0C1C3D) : Colors.white,
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF0C1C3D)
+                                  : Colors.grey.shade400,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : const Color(0xFF0C1C3D),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        "Price Range",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0C1C3D),
+                        ),
+                      ),
+                      Text(
+                        "OMR ${priceValue.toInt()}",
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0C1C3D),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  Slider(
+                    value: priceValue,
+                    min: 0,
+                    max: 200,
+                    activeColor: const Color(0xFF0C1C3D),
+                    inactiveColor: Colors.grey.shade300,
+                    onChanged: (val) {
+                      setSheetState(() => priceValue = val);
+                      setState(() {});
+                    },
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0C1C3D),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        "Apply Filter",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  // ================= MAIN UI ================= //
   @override
   Widget build(BuildContext context) {
     final name = Provider.of<AuthProvider>(context).fullName ?? "User";
@@ -32,17 +252,13 @@ class HomePage extends StatelessWidget {
                   ),
                   Image.asset("images/logo.png", height: 40),
                   GestureDetector(
-                    onTap: () {
-                      Navigator.pushNamed(context, '/notifications');
-                    },
+                    onTap: () =>
+                        Navigator.pushNamed(context, '/notifications'),
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        const Icon(
-                          Icons.notifications,
-                          size: 28,
-                          color: darkBlue,
-                        ),
+                        const Icon(Icons.notifications,
+                            size: 28, color: darkBlue),
                         Positioned(
                           right: -2,
                           top: -2,
@@ -65,7 +281,6 @@ class HomePage extends StatelessWidget {
                       ],
                     ),
                   ),
-
                 ],
               ),
 
@@ -77,10 +292,7 @@ class HomePage extends StatelessWidget {
                   children: [
                     Text(
                       "Hi, $name",
-                      style: const TextStyle(
-                        fontSize: 18,
-                        color: Colors.black54,
-                      ),
+                      style: const TextStyle(fontSize: 18, color: Colors.black54),
                     ),
                     const Text(
                       "Al Khuwair, Muscat",
@@ -96,49 +308,36 @@ class HomePage extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // -------- SEARCH BOX -------- //
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.pushNamed(context, '/search');
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.search, color: Colors.grey),
-                            SizedBox(width: 8),
-                            Text(
-                              "Search location",
-                              style: TextStyle(color: Colors.grey),
-                            ),
-                          ],
-                        ),
+              // -------- SEARCH BOX WITH TUNE INSIDE -------- //
+              Container(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        "Search location",
+                        style: TextStyle(color: Colors.grey),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
+                    GestureDetector(
+                      onTap: showFilterSheet,
+                      child:
+                      const Icon(Icons.tune, color: Color(0xFF0C1C3D)),
                     ),
-                    child: const Icon(Icons.tune, color: darkBlue),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
               const SizedBox(height: 20),
 
-              // -------- CATEGORY CHIPS (SCROLLABLE) -------- //
+              // -------- CATEGORY CHIPS -------- //
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -156,7 +355,9 @@ class HomePage extends StatelessWidget {
 
               const SizedBox(height: 20),
 
-              // -------- CARDS -------- //
+              // -------- PLACES -------- //
+              const SizedBox(height: 10),
+
               _PlaceCard(
                 title: "Burj Khalifa",
                 country: "United Arab Emirates",
@@ -165,7 +366,9 @@ class HomePage extends StatelessWidget {
                 "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTA1NFo2irXJ0RLEU8AhJY0Xuj9ZK_Fb_1ASw&s",
                 price: "OMR 19-20 / Person",
               ),
+
               const SizedBox(height: 16),
+
               _PlaceCard(
                 title: "Sultan Qaboos Grand",
                 country: "Al Ghubrah, Muscat",
@@ -178,14 +381,12 @@ class HomePage extends StatelessWidget {
           ),
         ),
       ),
-
-      // =================== CUSTOM FOOTER =================== //
       bottomNavigationBar: const AppFooter(currentIndex: 0),
     );
   }
 }
 
-// ---------------- Small widgets ----------------
+// ---------------- CHIP WIDGET ----------------
 
 class _Chip extends StatelessWidget {
   final String label;
@@ -201,8 +402,7 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding:
-      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: selected ? const Color(0xFF0C1C3D) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -227,6 +427,8 @@ class _Chip extends StatelessWidget {
   }
 }
 
+// ---------------- PLACE CARD ----------------
+
 class _PlaceCard extends StatelessWidget {
   final String title, country, rating, image, price;
 
@@ -239,11 +441,10 @@ class _PlaceCard extends StatelessWidget {
   });
 
   static const cream = Color(0xFFF7F1E8);
+  static const darkBlue = Color(0xFF0C1C3D);
 
   @override
   Widget build(BuildContext context) {
-    const darkBlue = Color(0xFF0C1C3D);
-
     return Container(
       height: 220,
       decoration: BoxDecoration(
@@ -256,42 +457,31 @@ class _PlaceCard extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // dark overlay
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
             ),
           ),
 
-          // top row (country + rating + fav)
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                const Icon(Icons.location_on,
-                    color: Colors.white, size: 16),
+                const Icon(Icons.location_on, color: Colors.white, size: 16),
                 const SizedBox(width: 4),
-                Text(
-                  country,
-                  style:
-                  const TextStyle(color: Colors.white, fontSize: 13),
-                ),
+                Text(country,
+                    style: const TextStyle(color: Colors.white, fontSize: 13)),
                 const SizedBox(width: 8),
-                const Icon(Icons.star,
-                    color: Colors.amber, size: 16),
-                Text(
-                  rating,
-                  style:
-                  const TextStyle(color: Colors.white, fontSize: 13),
-                ),
+                const Icon(Icons.star, color: Colors.amber, size: 16),
+                Text(rating,
+                    style: const TextStyle(color: Colors.white, fontSize: 13)),
                 const Spacer(),
                 const Icon(Icons.favorite_border, color: Colors.white),
               ],
             ),
           ),
 
-          // bottom info card
           Positioned(
             left: 14,
             right: 34,
@@ -305,27 +495,20 @@ class _PlaceCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: darkBlue,
-                      fontSize: 16,
-                    ),
-                  ),
+                  Text(title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: darkBlue,
+                          fontSize: 16)),
                   const SizedBox(height: 6),
-                  Text(
-                    price,
-                    style: const TextStyle(
-                      color: Color(0xFFF89C1B),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  Text(price,
+                      style: const TextStyle(
+                          color: Color(0xFFF89C1B),
+                          fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
           ),
-
 
           Positioned(
             right: -23,
@@ -341,15 +524,10 @@ class _PlaceCard extends StatelessWidget {
                 child: Container(
                   width: 40,
                   height: 40,
-                  decoration: const BoxDecoration(
-                    color: darkBlue,
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.north_east,
-                    color: Colors.white,
-                    size: 22,
-                  ),
+                  decoration:
+                  const BoxDecoration(color: darkBlue, shape: BoxShape.circle),
+                  child: const Icon(Icons.north_east,
+                      color: Colors.white, size: 22),
                 ),
               ),
             ),
