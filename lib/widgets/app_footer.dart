@@ -45,27 +45,37 @@ class AppFooter extends StatelessWidget {
             ),
 
             // CENTER BUTTON
-            Container(
-              width: 46,
-              height: 46,
-              decoration: const BoxDecoration(
-                color: darkBlue,
-                shape: BoxShape.circle,
-              ),
-              child: Transform.rotate(
-                angle: -0.9,
-                child: IconButton(
-                  onPressed: () {
-                    // TODO add your center button navigation
-                  },
-                  icon: const Icon(
-                    Icons.send_rounded,
+            GestureDetector(
+              onTap: () {
+                if (currentIndex != 2) {
+                  Navigator.pushReplacementNamed(context, '/edit-location');
+                }
+              },
+              child: Container(
+                height: 64,
+                width: 64,
+                decoration: BoxDecoration(
+                  color: currentIndex == 2 ? darkBlue : darkBlue,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Transform.rotate(
+                  angle: -0.8,
+                  child: Icon(
+                    Icons.send,
                     color: Colors.white,
-                    size: 28,
+                    size: currentIndex == 2 ? 30 : 28,
                   ),
                 ),
               ),
             ),
+
 
             // HEART
             IconButton(
@@ -98,4 +108,3 @@ class AppFooter extends StatelessWidget {
     );
   }
 }
-
