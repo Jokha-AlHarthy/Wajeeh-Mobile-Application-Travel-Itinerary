@@ -166,10 +166,6 @@ class FavoritePage extends StatelessWidget {
   }
 }
 
-// ============================================================
-//                      CHIP WIDGET
-// ============================================================
-
 class _Chip extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -207,9 +203,7 @@ class _Chip extends StatelessWidget {
   }
 }
 
-// ============================================================
-//                      FAVORITE CARD
-// ============================================================
+
 
 class _FavoriteCard extends StatelessWidget {
   final String title, country, image, price;
@@ -335,3 +329,4 @@ class _FavoriteCard extends StatelessWidget {
     );
   }
 }
+
