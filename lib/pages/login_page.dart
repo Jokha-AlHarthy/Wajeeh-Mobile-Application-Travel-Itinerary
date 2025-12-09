@@ -28,7 +28,6 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              /// Logo
               Image.asset("images/logo.png", height: 170),
 
               const SizedBox(height: 40),
@@ -47,7 +46,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 5),
 
-              /// Email
               CustomTextField(
                 hint: "Email",
                 controller: email,
@@ -57,7 +55,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 12),
 
-              /// Password
               CustomTextField(
                 hint: "Password",
                 controller: password,
@@ -94,7 +91,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 5),
 
-              /// Log in button
               SizedBox(
                 width: 155,
                 height: 55,
@@ -109,7 +105,13 @@ class _LoginPageState extends State<LoginPage> {
 
                     if (!mounted) return;
                     if (ok) {
-                      Navigator.pushReplacementNamed(context, "/home");
+                      if (auth.isAdmin) {
+                        Navigator.pushReplacementNamed(
+                            context, "/adminHome");
+                      } else {
+                        Navigator.pushReplacementNamed(
+                            context, "/home");
+                      }
                     } else if (auth.error != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text(auth.error!)),
@@ -149,7 +151,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 20),
 
-              /// OR divider
               Row(
                 children: [
                   Expanded(
@@ -176,7 +177,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 15),
 
-              /// Google login
               GestureDetector(
                 onTap: auth.isLoading
                     ? null
@@ -196,7 +196,6 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 20),
 
-              /// Create account
               TextButton(
                 onPressed: () =>
                     Navigator.pushReplacementNamed(context, "/register"),
