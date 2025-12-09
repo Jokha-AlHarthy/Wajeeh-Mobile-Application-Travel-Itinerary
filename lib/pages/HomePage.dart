@@ -31,7 +31,6 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  // ================= FILTER SHEET ================= //
   void showFilterSheet() {
     showModalBottomSheet(
       context: context,
@@ -67,7 +66,7 @@ class _HomePageState extends State<HomePage> {
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF0C1C3D),
+                        color: Color(0xff1A2B49),
                       ),
                     ),
                   ),
@@ -79,7 +78,7 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF0C1C3D),
+                      color: Color(0xff1A2B49),
                     ),
                   ),
 
@@ -101,7 +100,7 @@ class _HomePageState extends State<HomePage> {
                           TextStyle(color: Colors.black87, fontSize: 15),
                         ),
                         Icon(Icons.location_on_outlined,
-                            color: Color(0xFF0C1C3D)),
+                            color: Color(0xff1A2B49)),
                       ],
                     ),
                   ),
@@ -113,7 +112,7 @@ class _HomePageState extends State<HomePage> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF0C1C3D),
+                      color: Color(0xff1A2B49),
                     ),
                   ),
 
@@ -134,10 +133,10 @@ class _HomePageState extends State<HomePage> {
                               horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
                             color:
-                            isSelected ? const Color(0xFF0C1C3D) : Colors.white,
+                            isSelected ? const Color(0xff1A2B49) : Colors.white,
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF0C1C3D)
+                                  ? const Color(0xff1A2B49)
                                   : Colors.grey.shade400,
                             ),
                             borderRadius: BorderRadius.circular(14),
@@ -147,7 +146,7 @@ class _HomePageState extends State<HomePage> {
                             style: TextStyle(
                               color: isSelected
                                   ? Colors.white
-                                  : const Color(0xFF0C1C3D),
+                                  : const Color(0xff1A2B49),
                             ),
                           ),
                         ),
@@ -165,7 +164,7 @@ class _HomePageState extends State<HomePage> {
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF0C1C3D),
+                          color: Color(0xff1A2B49),
                         ),
                       ),
                       Text(
@@ -173,7 +172,7 @@ class _HomePageState extends State<HomePage> {
                         style: const TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF0C1C3D),
+                          color: Color(0xff1A2B49),
                         ),
                       ),
                     ],
@@ -183,7 +182,7 @@ class _HomePageState extends State<HomePage> {
                     value: priceValue,
                     min: 0,
                     max: 200,
-                    activeColor: const Color(0xFF0C1C3D),
+                    activeColor: const Color(0xff1A2B49),
                     inactiveColor: Colors.grey.shade300,
                     onChanged: (val) {
                       setSheetState(() => priceValue = val);
@@ -197,7 +196,7 @@ class _HomePageState extends State<HomePage> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0C1C3D),
+                        backgroundColor: const Color(0xff1A2B49),
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
@@ -225,13 +224,12 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  // ================= MAIN UI ================= //
   @override
   Widget build(BuildContext context) {
     final name = Provider.of<AuthProvider>(context).fullName ?? "User";
 
     const cream = Color(0xffF7F1E8);
-    const darkBlue = Color(0xFF0C1C3D);
+    const darkBlue = Color(0xff1A2B49);
 
     return Scaffold(
       backgroundColor: cream,
@@ -241,7 +239,6 @@ class _HomePageState extends State<HomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // -------- TOP BAR -------- //
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -286,7 +283,6 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 20),
 
-              // -------- GREETING -------- //
               Center(
                 child: Column(
                   children: [
@@ -308,7 +304,6 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 20),
 
-              // -------- SEARCH BOX WITH TUNE INSIDE -------- //
               Container(
                 padding:
                 const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -329,7 +324,7 @@ class _HomePageState extends State<HomePage> {
                     GestureDetector(
                       onTap: showFilterSheet,
                       child:
-                      const Icon(Icons.tune, color: Color(0xFF0C1C3D)),
+                      const Icon(Icons.tune, color: Color(0xff1A2B49)),
                     ),
                   ],
                 ),
@@ -337,7 +332,6 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 20),
 
-              // -------- CATEGORY CHIPS -------- //
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -355,7 +349,6 @@ class _HomePageState extends State<HomePage> {
 
               const SizedBox(height: 20),
 
-              // -------- PLACES -------- //
               const SizedBox(height: 10),
 
               _PlaceCard(
@@ -386,8 +379,6 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ---------------- CHIP WIDGET ----------------
-
 class _Chip extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -404,7 +395,7 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: selected ? const Color(0xFF0C1C3D) : Colors.white,
+        color: selected ? const Color(0xff1A2B49) : Colors.white,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -412,13 +403,13 @@ class _Chip extends StatelessWidget {
           Icon(
             icon,
             size: 16,
-            color: selected ? Colors.white : const Color(0xFF0C1C3D),
+            color: selected ? Colors.white : const Color(0xff1A2B49),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : const Color(0xFF0C1C3D),
+              color: selected ? Colors.white : const Color(0xff1A2B49),
             ),
           ),
         ],
@@ -427,11 +418,8 @@ class _Chip extends StatelessWidget {
   }
 }
 
-// ---------------- PLACE CARD ----------------
-
 class _PlaceCard extends StatelessWidget {
   final String title, country, rating, image, price;
-
   const _PlaceCard({
     required this.title,
     required this.country,
@@ -439,9 +427,8 @@ class _PlaceCard extends StatelessWidget {
     required this.image,
     required this.price,
   });
-
   static const cream = Color(0xFFF7F1E8);
-  static const darkBlue = Color(0xFF0C1C3D);
+  static const darkBlue = Color(0xff1A2B49);
 
   @override
   Widget build(BuildContext context) {
