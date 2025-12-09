@@ -18,7 +18,6 @@ class SearchPage extends StatelessWidget {
         centerTitle: true,
         title: Image.asset("images/logo.png", height: 40),
         actions: [
-          // ✅ نفس أيقونة الإشعار الموجودة في HomePage
           GestureDetector(
             onTap: () {
               Navigator.pushNamed(context, '/notifications');
