@@ -53,6 +53,7 @@ class AuthProvider extends ChangeNotifier {
         fullName: fullName,
         phone: phone,
       );
+
       if (user == null) throw Exception("Registration failed.");
       _otpEmail = email;
       // generate otp
@@ -89,7 +90,6 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
-
   /// OTP VERIFICATION
   Future<bool> verifyOtp(String enteredOtp) async {
     if (_generatedOtp == null) {
@@ -175,10 +175,12 @@ class AuthProvider extends ChangeNotifier {
                 .toString();
         email = (data['email'] ?? user.email ?? '').toString();
         phone = (data['phone'] ?? '').toString();
+        role = (data['role'] ?? '').toString();
       } else {
         fullName = user.displayName ?? '';
         email = user.email ?? '';
         phone = '';
+        role = null;
       }
 
       notifyListeners();
@@ -186,6 +188,7 @@ class AuthProvider extends ChangeNotifier {
       debugPrint('loadUserProfile error: $e');
     }
   }
+
 
   /// LOGOUT
   Future<void> logout() async {
