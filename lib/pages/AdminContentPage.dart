@@ -36,7 +36,6 @@ class AdminContentPage extends StatelessWidget {
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Center(
-            // عشان يكون في النص مثل الديزاين
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
@@ -258,3 +257,4 @@ class AdminContentPage extends StatelessWidget {
 
 
 }
+
