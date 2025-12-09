@@ -41,6 +41,10 @@ import 'pages/trip_planning_screen.dart';
 //import 'pages/trip_detail_screen.dart';
 //import 'pages/rate_screen.dart';
 import 'pages/FavoritePage.dart';
+import 'pages/profile_screen.dart';
+import 'pages/AdminContentPage.dart';
+import 'pages/AdminDashboardPage.dart';
+import 'pages/AdminFeedbackManage.dart';
 
 
 
@@ -99,6 +103,10 @@ class MyApp extends StatelessWidget {
           //"/trip_detail":(_)=>const TripDetailScreen(),
           //"/rate":(_)=>const RateScreen(),
           "/favorite":(_)=> const FavoritePage(),
+          "/profile":(_)=> const ProfileScreen(),
+          "/adminContent":(_)=> const AdminContentPage(),
+          "/adminDashboard":(_)=> const AdminDashboardPage(),
+          "/adminFeedback":(_)=> const AdminFeedbackManage(),
 
         },
       ),
