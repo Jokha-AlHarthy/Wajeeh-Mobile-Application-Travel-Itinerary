@@ -85,8 +85,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 10),
 
                   Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       border: Border.all(color: Colors.grey.shade400),
                       borderRadius: BorderRadius.circular(12),
@@ -96,8 +95,7 @@ class _HomePageState extends State<HomePage> {
                       children: const [
                         Text(
                           "Dubai, United Arab Emirates",
-                          style:
-                          TextStyle(color: Colors.black87, fontSize: 15),
+                          style: TextStyle(color: Colors.black87, fontSize: 15),
                         ),
                         Icon(Icons.location_on_outlined,
                             color: Color(0xff1A2B49)),
@@ -129,11 +127,12 @@ class _HomePageState extends State<HomePage> {
                           setSheetState(() {});
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 10),
+                          padding:
+                          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color:
-                            isSelected ? const Color(0xff1A2B49) : Colors.white,
+                            color: isSelected
+                                ? const Color(0xff1A2B49)
+                                : Colors.white,
                             border: Border.all(
                               color: isSelected
                                   ? const Color(0xff1A2B49)
@@ -229,7 +228,7 @@ class _HomePageState extends State<HomePage> {
     final name = Provider.of<AuthProvider>(context).fullName ?? "User";
 
     const cream = Color(0xffF7F1E8);
-    const darkBlue = Color(0xff1A2B49);
+    const darkBlue = Color(0xFF0C1C3D);
 
     return Scaffold(
       backgroundColor: cream,
@@ -249,13 +248,13 @@ class _HomePageState extends State<HomePage> {
                   ),
                   Image.asset("images/logo.png", height: 40),
                   GestureDetector(
-                    onTap: () =>
-                        Navigator.pushNamed(context, '/notifications'),
+                    onTap: () {
+                      Navigator.pushNamed(context, '/notifications');
+                    },
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        const Icon(Icons.notifications,
-                            size: 28, color: darkBlue),
+                        const Icon(Icons.notifications, size: 28, color: darkBlue),
                         Positioned(
                           right: -2,
                           top: -2,
@@ -288,7 +287,8 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     Text(
                       "Hi, $name",
-                      style: const TextStyle(fontSize: 18, color: Colors.black54),
+                      style:
+                      const TextStyle(fontSize: 18, color: Colors.black54),
                     ),
                     const Text(
                       "Al Khuwair, Muscat",
@@ -303,10 +303,8 @@ class _HomePageState extends State<HomePage> {
               ),
 
               const SizedBox(height: 20),
-
               Container(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(14),
@@ -323,8 +321,7 @@ class _HomePageState extends State<HomePage> {
                     ),
                     GestureDetector(
                       onTap: showFilterSheet,
-                      child:
-                      const Icon(Icons.tune, color: Color(0xff1A2B49)),
+                      child: const Icon(Icons.tune, color: darkBlue),
                     ),
                   ],
                 ),
@@ -348,8 +345,6 @@ class _HomePageState extends State<HomePage> {
               ),
 
               const SizedBox(height: 20),
-
-              const SizedBox(height: 10),
 
               _PlaceCard(
                 title: "Burj Khalifa",
@@ -395,7 +390,7 @@ class _Chip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: selected ? const Color(0xff1A2B49) : Colors.white,
+        color: selected ? const Color(0xFF0C1C3D) : Colors.white,
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -403,13 +398,13 @@ class _Chip extends StatelessWidget {
           Icon(
             icon,
             size: 16,
-            color: selected ? Colors.white : const Color(0xff1A2B49),
+            color: selected ? Colors.white : const Color(0xFF0C1C3D),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : const Color(0xff1A2B49),
+              color: selected ? Colors.white : const Color(0xFF0C1C3D),
             ),
           ),
         ],
@@ -420,6 +415,7 @@ class _Chip extends StatelessWidget {
 
 class _PlaceCard extends StatelessWidget {
   final String title, country, rating, image, price;
+
   const _PlaceCard({
     required this.title,
     required this.country,
@@ -427,11 +423,13 @@ class _PlaceCard extends StatelessWidget {
     required this.image,
     required this.price,
   });
+
   static const cream = Color(0xFFF7F1E8);
-  static const darkBlue = Color(0xff1A2B49);
 
   @override
   Widget build(BuildContext context) {
+    const darkBlue = Color(0xFF0C1C3D);
+
     return Container(
       height: 220,
       decoration: BoxDecoration(
@@ -447,7 +445,7 @@ class _PlaceCard extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
-              color: Colors.black.withValues(alpha: 0.25),
+              color: Colors.black.withOpacity(0.25),
             ),
           ),
 
@@ -457,12 +455,16 @@ class _PlaceCard extends StatelessWidget {
               children: [
                 const Icon(Icons.location_on, color: Colors.white, size: 16),
                 const SizedBox(width: 4),
-                Text(country,
-                    style: const TextStyle(color: Colors.white, fontSize: 13)),
+                Text(
+                  country,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
                 const SizedBox(width: 8),
                 const Icon(Icons.star, color: Colors.amber, size: 16),
-                Text(rating,
-                    style: const TextStyle(color: Colors.white, fontSize: 13)),
+                Text(
+                  rating,
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                ),
                 const Spacer(),
                 const Icon(Icons.favorite_border, color: Colors.white),
               ],
@@ -471,50 +473,88 @@ class _PlaceCard extends StatelessWidget {
 
           Positioned(
             left: 14,
-            right: 34,
+            right: 80,
             bottom: 14,
             child: Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(15),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: darkBlue,
-                          fontSize: 16)),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: darkBlue,
+                      fontSize: 16,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text(price,
-                      style: const TextStyle(
+
+                  Row(
+                    children: [
+                      const Text(
+                        "Start from ",
+                        style: TextStyle(
+                          color: Colors.black54,
+                          fontSize: 13,
+                        ),
+                      ),
+                      Text(
+                        price.split("/").first.trim(),
+                        style: const TextStyle(
                           color: Color(0xFFF89C1B),
-                          fontWeight: FontWeight.bold)),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        " / ${price.split("/").last.trim()}",
+                        style: const TextStyle(
+                          color: Color(0xFFF2B86C),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
           ),
 
           Positioned(
-            right: -23,
+            right: -5,
             bottom: -7,
             child: Container(
-              width: 56,
-              height: 56,
+              width: 70,
+              height: 70,
               decoration: const BoxDecoration(
                 color: cream,
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration:
-                  const BoxDecoration(color: darkBlue, shape: BoxShape.circle),
-                  child: const Icon(Icons.north_east,
-                      color: Colors.white, size: 22),
+                  width: 55,
+                  height: 55,
+                  decoration: const BoxDecoration(
+                    color: darkBlue,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.north_east,
+                    color: Colors.white,
+                    size: 25,
+                    shadows: [
+                      Shadow(
+                        offset: Offset(0, 0),
+                        blurRadius: 3,
+                        color: Colors.white,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
