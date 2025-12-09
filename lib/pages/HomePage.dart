@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
+import 'DisplayResultScreen.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -543,18 +544,29 @@ class _PlaceCard extends StatelessWidget {
                     color: darkBlue,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
-                    Icons.north_east,
-                    color: Colors.white,
-                    size: 25,
-                    shadows: [
-                      Shadow(
-                        offset: Offset(0, 0),
-                        blurRadius: 3,
-                        color: Colors.white,
-                      ),
-                    ],
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DisplayResultScreen(),
+                        ),
+                      );
+                    },
+                    child: const Icon(
+                      Icons.north_east,
+                      color: Colors.white,
+                      size: 25,
+                      shadows: [
+                        Shadow(
+                          offset: Offset(0, 0),
+                          blurRadius: 3,
+                          color: Colors.white,
+                        ),
+                      ],
+                    ),
                   ),
+
                 ),
               ),
             ),
