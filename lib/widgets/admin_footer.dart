@@ -60,7 +60,6 @@ class AdminFooter extends StatelessWidget {
             ),
           ),
 
-          // Profile / users
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, "/adminProfile"),
             child: Icon(
