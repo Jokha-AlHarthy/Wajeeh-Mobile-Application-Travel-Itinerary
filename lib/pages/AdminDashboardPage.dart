@@ -41,14 +41,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Logo
                   Image.asset(
                     "images/logo.png",
                     height: 70,
                   ),
                   const SizedBox(height: 8),
 
-                  // Title
                   const Text(
                     "Admin Dashboard",
                     textAlign: TextAlign.center,
@@ -60,7 +58,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   ),
                   const SizedBox(height: 18),
 
-                  // ===== Card: Add User =====
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 18),
@@ -82,14 +79,12 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         ),
                         const SizedBox(height: 14),
 
-                        // Username
                         _buildTextField(
                           controller: _usernameController,
                           hint: "Username",
                         ),
                         const SizedBox(height: 10),
 
-                        // Email
                         _buildTextField(
                           controller: _emailController,
                           hint: "Email",
@@ -97,7 +92,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         ),
                         const SizedBox(height: 10),
 
-                        // Password
                         _buildTextField(
                           controller: _passwordController,
                           hint: "Password",
@@ -105,17 +99,14 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         ),
                         const SizedBox(height: 10),
 
-                        // Role dropdown
                         _buildRoleDropdown(),
 
                         const SizedBox(height: 16),
 
-                        // Add User button (full width)
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
                             onPressed: () {
-                              // backend 
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: darkBlue,
@@ -140,7 +131,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
 
                   const SizedBox(height: 18),
 
-                  // ===== All User Title =====
                   const Text(
                     "All User",
                     style: TextStyle(
@@ -151,7 +141,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                   ),
                   const SizedBox(height: 10),
 
-                  // ===== Users Table =====
                   _buildUsersTable(),
                 ],
               ),
@@ -163,7 +152,6 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     );
   }
 
-  // ---------- Widgets helpers ----------
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -361,14 +349,13 @@ class _TableActionCell extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Edit button
           SizedBox(
             height: 24,
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {},
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0C1C3D), // dark blue
+                backgroundColor: const Color(0xFF0C1C3D), 
                 padding: EdgeInsets.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity:
@@ -391,7 +378,6 @@ class _TableActionCell extends StatelessWidget {
 
           const SizedBox(height: 4),
 
-          // Delete button
           SizedBox(
             height: 24,
             width: double.infinity,
@@ -423,4 +409,5 @@ class _TableActionCell extends StatelessWidget {
     );
   }
 }
+
 
