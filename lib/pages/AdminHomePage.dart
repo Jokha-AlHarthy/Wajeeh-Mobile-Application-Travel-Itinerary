@@ -9,32 +9,28 @@ class AdminHomePage extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFFF7F1E8),
 
-      /// BODY
       body: SafeArea(
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Logo
               Image.asset("images/logo.png", height: 150),
 
               const SizedBox(height: 30),
 
-              // Welcome Text
               const Text(
                 "Welcome Back\nAdmin!",
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 30,
                   fontWeight: FontWeight.bold,
-                  color: Color(0xFFF5B546), // gold-ish
+                  color: Color(0xFFF5B546), 
                 ),
               ),
 
               const SizedBox(height: 50),
 
-              // Illustration
               Image.asset(
                 "images/illustration.png",
                 height: 260,
@@ -46,7 +42,6 @@ class AdminHomePage extends StatelessWidget {
         ),
       ),
 
-      /// FOOTER
       bottomNavigationBar: const AdminFooter(),
     );
   }
