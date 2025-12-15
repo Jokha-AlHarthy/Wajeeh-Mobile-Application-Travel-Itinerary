@@ -18,7 +18,6 @@ class AppFooter extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            // HOME
             IconButton(
               onPressed: () {
                 if (currentIndex != 0) {
@@ -31,7 +30,6 @@ class AppFooter extends StatelessWidget {
               ),
             ),
 
-            // EXPLORE / AI TRIP
             IconButton(
               onPressed: () {
                 if (currentIndex != 1) {
@@ -44,7 +42,6 @@ class AppFooter extends StatelessWidget {
               ),
             ),
 
-            // CENTER BUTTON
             GestureDetector(
               onTap: () {
                 if (currentIndex != 2) {
@@ -77,7 +74,6 @@ class AppFooter extends StatelessWidget {
             ),
 
 
-            // HEART
             IconButton(
               onPressed: () {
                 if (currentIndex != 3) {
@@ -90,7 +86,6 @@ class AppFooter extends StatelessWidget {
               ),
             ),
 
-            // SETTINGS
             IconButton(
               onPressed: () {
                 if (currentIndex != 4) {
