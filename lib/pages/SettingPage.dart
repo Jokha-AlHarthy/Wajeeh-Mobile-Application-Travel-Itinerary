@@ -15,7 +15,6 @@ class SettingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = Provider.of<myAuth.AuthProvider>(context);
 
-    // LOAD FROM YOUR PROVIDER
     final String name = auth.fullName ?? "User";
     final String email = auth.email ?? "No email";
 
@@ -25,7 +24,6 @@ class SettingPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // TITLE
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Row(
@@ -83,7 +81,6 @@ class SettingPage extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // USER INFO
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -123,7 +120,6 @@ class SettingPage extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // PERSONAL INFO
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text("Personal Info",
@@ -134,7 +130,6 @@ class SettingPage extends StatelessWidget {
               Navigator.pushNamed(context, '/profile');
             }),
 
-            // SECURITY
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Text(
@@ -154,7 +149,6 @@ class SettingPage extends StatelessWidget {
               },
             ),
 
-            // GENERAL
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Text("General",
@@ -170,7 +164,6 @@ class SettingPage extends StatelessWidget {
                 Navigator.pushNamed(context, '/user_feedback');
               },),
 
-            // ABOUT
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Text("About",
@@ -182,7 +175,6 @@ class SettingPage extends StatelessWidget {
 
             const Spacer(),
 
-            // LOGOUT BUTTON
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               child: SizedBox(
@@ -284,7 +276,6 @@ void _showLogoutDialog(BuildContext context) {
   );
 }
 
-// Reusable tile
 Widget _settingTile({
   required IconData icon,
   required String title,
@@ -300,6 +291,6 @@ Widget _settingTile({
       ),
     ),
     trailing: const Icon(Icons.chevron_right),
-    onTap: onTap, // <-- use it here
+    onTap: onTap,
   );
 }
