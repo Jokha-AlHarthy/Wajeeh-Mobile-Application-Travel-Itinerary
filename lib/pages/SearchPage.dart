@@ -163,7 +163,6 @@ class SearchPage extends StatelessWidget {
     );
   }
 
-  // CHIP WIDGET
   static Widget _chip(String label) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 14),
@@ -175,7 +174,6 @@ class SearchPage extends StatelessWidget {
     );
   }
 
-  // RECENTLY VIEWED ROW
   static Widget _placeRow({
     required String image,
     required String title,
@@ -215,7 +213,6 @@ class SearchPage extends StatelessWidget {
     );
   }
 
-  // POPULAR DESTINATION CARD
   static Widget _popularCard(String title, String image) {
     return Container(
       width: 150,
