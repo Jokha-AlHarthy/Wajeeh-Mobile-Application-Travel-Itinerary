@@ -46,14 +46,12 @@ class AdminFeedbackManage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Logo
                   Image.asset(
                     "images/logo.png",
                     height: 70,
                   ),
                   const SizedBox(height: 8),
 
-                  // Title
                   const Text(
                     "User Feedback",
                     textAlign: TextAlign.center,
@@ -77,7 +75,6 @@ class AdminFeedbackManage extends StatelessWidget {
                     ),
                     child: Column(
                       children: [
-                        // Feedback cards
                         ...feedbackList.map(
                               (fb) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
