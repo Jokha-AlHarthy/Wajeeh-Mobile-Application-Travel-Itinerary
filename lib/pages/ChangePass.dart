@@ -17,7 +17,6 @@ class _ChangePassState extends State<ChangePass> {
 
   bool _isLoading = false;
 
-  // show / hide state
   bool _showOld = false;
   bool _showNew = false;
   bool _showConfirm = false;
@@ -106,7 +105,6 @@ class _ChangePassState extends State<ChangePass> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                /// top bar
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -121,7 +119,6 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 40),
 
-                /// title
                 const Center(
                   child: Column(
                     children: [
@@ -148,7 +145,6 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 32),
 
-                /// OLD PASSWORD
                 const Text(
                   "Old Password",
                   style: TextStyle(
@@ -185,7 +181,6 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 18),
 
-                /// NEW PASSWORD
                 const Text(
                   "New Password",
                   style: TextStyle(
@@ -229,7 +224,6 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 18),
 
-                /// CONFIRM PASSWORD
                 const Text(
                   "Confirm Password",
                   style: TextStyle(
@@ -270,7 +264,6 @@ class _ChangePassState extends State<ChangePass> {
 
                 const SizedBox(height: 32),
 
-                /// SAVE BUTTON
                 SizedBox(
                   width: double.infinity,
                   height: 48,
