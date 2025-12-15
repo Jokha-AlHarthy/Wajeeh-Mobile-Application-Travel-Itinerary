@@ -57,7 +57,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
               ),
               const SizedBox(height: 14),
 
-              // header + avatar
               Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -145,7 +144,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
 
               const SizedBox(height: 25),
 
-              // preferences
               Container(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 padding: const EdgeInsets.all(16),
@@ -236,7 +234,6 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
     );
   }
 
-  // -------- widgets helpers --------
 
   Widget _field(String label, TextEditingController c, {String? hint}) {
     return Padding(
