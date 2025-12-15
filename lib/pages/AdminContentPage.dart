@@ -41,7 +41,6 @@ class AdminContentPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Logo + title
                   Image.asset(
                     "images/logo.png",
                     height: 70,
@@ -257,4 +256,5 @@ class AdminContentPage extends StatelessWidget {
 
 
 }
+
 
