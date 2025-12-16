@@ -4,16 +4,13 @@ import 'notifications_screen.dart';
 
 class AiTripStep3Screen extends StatefulWidget {
   const AiTripStep3Screen({super.key});
-
   @override
   State<AiTripStep3Screen> createState() => _AiTripStep3ScreenState();
 }
-
 class _AiTripStep3ScreenState extends State<AiTripStep3Screen> {
   DateTime focusedDay = DateTime(2025, 5, 1);
   DateTime? startDate;
   DateTime? endDate;
-
   void onDateSelected(DateTime date) {
     setState(() {
       if (startDate == null || (startDate != null && endDate != null)) {
@@ -29,22 +26,18 @@ class _AiTripStep3ScreenState extends State<AiTripStep3Screen> {
       }
     });
   }
-
   bool isInRange(DateTime day) {
     if (startDate == null || endDate == null) return false;
     return day.isAfter(startDate!) && day.isBefore(endDate!);
   }
-
   bool isSelected(DateTime day) {
     return (startDate != null && day == startDate) ||
         (endDate != null && day == endDate);
   }
-
   String get rangeText {
     if (startDate == null || endDate == null) return "";
     return "${startDate!.day}–${endDate!.day} ${_monthName(startDate!.month)}, ${startDate!.year}";
   }
-
   String _monthName(int m) {
     const names = [
       "",
@@ -63,15 +56,12 @@ class _AiTripStep3ScreenState extends State<AiTripStep3Screen> {
     ];
     return names[m];
   }
-
   int daysInMonth(DateTime date) {
     return DateTime(date.year, date.month + 1, 0).day;
   }
-
   @override
   Widget build(BuildContext context) {
     int totalDays = daysInMonth(focusedDay);
-
     return Scaffold(
       backgroundColor: const Color(0xffF5EFE4),
       appBar: AppBar(
@@ -99,7 +89,6 @@ class _AiTripStep3ScreenState extends State<AiTripStep3Screen> {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -133,7 +122,6 @@ class _AiTripStep3ScreenState extends State<AiTripStep3Screen> {
           ),
         ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
@@ -163,7 +151,6 @@ class _AiTripStep3ScreenState extends State<AiTripStep3Screen> {
               ),
             ),
             const SizedBox(height: 8),
-
             if (rangeText.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 6, bottom: 10),
@@ -280,11 +267,9 @@ class _AiTripStep3ScreenState extends State<AiTripStep3Screen> {
                             );
                             final selected = isSelected(date);
                             final inRange = isInRange(date);
-
                             Color bg = Colors.transparent;
                             if (inRange) bg = Colors.orange.shade100;
                             if (selected) bg = Colors.orange.shade300;
-
                             return GestureDetector(
                               onTap: () => onDateSelected(date),
                               child: AnimatedContainer(
