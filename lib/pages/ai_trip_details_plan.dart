@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'notifications_screen.dart';
-import 'HomePage.dart';
 
 class TripDetailsScreen extends StatelessWidget {
   final String title;
@@ -8,7 +7,6 @@ class TripDetailsScreen extends StatelessWidget {
   final String travellers;
   final String budget;
   final String image;
-
   const TripDetailsScreen({
     super.key,
     required this.title,
@@ -17,7 +15,6 @@ class TripDetailsScreen extends StatelessWidget {
     required this.budget,
     required this.image,
   });
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -47,7 +44,6 @@ class TripDetailsScreen extends StatelessWidget {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -96,7 +92,6 @@ class TripDetailsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 18),
-
             Text(
               title,
               style: const TextStyle(
@@ -106,7 +101,6 @@ class TripDetailsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-
             const Text(
               "We have adjusted and created the most suitable plan for your trip "
               "according to the criteria you have provided, we hope you like it",
@@ -117,7 +111,6 @@ class TripDetailsScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -169,9 +162,7 @@ class TripDetailsScreen extends StatelessWidget {
                 ],
               ),
             ),
-
             const SizedBox(height: 22),
-
             Wrap(
               spacing: 12,
               runSpacing: 12,
@@ -182,9 +173,7 @@ class TripDetailsScreen extends StatelessWidget {
                 _dayButton("24 May", selected: false),
               ],
             ),
-
             const SizedBox(height: 22),
-
             const Text(
               "08:30 : Head to Qurum Beach",
               style: TextStyle(
@@ -193,9 +182,7 @@ class TripDetailsScreen extends StatelessWidget {
                 fontWeight: FontWeight.w500,
               ),
             ),
-
             const SizedBox(height: 80),
-
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -207,8 +194,7 @@ class TripDetailsScreen extends StatelessWidget {
                   ),
                 ),
                 onPressed: () {
-                  Navigator.pushReplacementNamed(
-                      context, "/home");
+                  Navigator.pushReplacementNamed(context, "/home");
                 },
                 child: const Text(
                   "Select this Plan",
@@ -225,7 +211,6 @@ class TripDetailsScreen extends StatelessWidget {
       ),
     );
   }
-
   Widget _infoTile({
     required IconData icon,
     required String title,
@@ -264,7 +249,6 @@ class TripDetailsScreen extends StatelessWidget {
       ],
     );
   }
-
   Widget _dayButton(String text, {required bool selected}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
