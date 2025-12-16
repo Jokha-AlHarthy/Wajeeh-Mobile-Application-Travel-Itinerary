@@ -4,41 +4,34 @@ import 'notifications_screen.dart';
 
 class ReviewSummaryScreen extends StatefulWidget {
   const ReviewSummaryScreen({super.key});
-
   @override
   State<ReviewSummaryScreen> createState() => _ReviewSummaryScreenState();
 }
-
 class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
   final TextEditingController _tripNameController = TextEditingController(
     text: "2025 May",
   );
-
   String _destination = "Oman";
   String _travellers = "With Family";
   String _dates = "21–24 May 2025";
   String _budget = "Cheap";
-
   final List<String> _allInterests = [
     "Relaxing",
     "Road Trip",
     "Historical",
     "Food Tourism",
   ];
-
   @override
   void dispose() {
     _tripNameController.dispose();
     super.dispose();
   }
-
   void _openLoadingDialog() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const TripLoadingDialog(),
     );
-
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop();
@@ -48,7 +41,6 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
       }
     });
   }
-
   Widget _rowItem(
     IconData icon,
     String title,
@@ -86,7 +78,6 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
       ),
     );
   }
-
   void _showEditValueDialog(
     String title,
     String current,
@@ -151,7 +142,6 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
       },
     );
   }
-
   void _showAddInterestDialog() {
     final controller = TextEditingController();
     showDialog(
@@ -185,7 +175,6 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
       },
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -203,7 +192,6 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
             fontSize: 20,
           ),
         ),
-
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -216,7 +204,6 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -250,14 +237,12 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
           ),
         ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 10),
-
             const Text(
               "Trip Name",
               style: TextStyle(
@@ -314,7 +299,6 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
               });
             }),
             const SizedBox(height: 6),
-
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -335,9 +319,7 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 10),
-
             Padding(
               padding: const EdgeInsets.only(bottom: 18),
               child: Row(
@@ -371,9 +353,7 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
                 ],
               ),
             ),
-
             const Spacer(),
-
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -391,7 +371,6 @@ class _ReviewSummaryScreenState extends State<ReviewSummaryScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 60),
           ],
         ),
