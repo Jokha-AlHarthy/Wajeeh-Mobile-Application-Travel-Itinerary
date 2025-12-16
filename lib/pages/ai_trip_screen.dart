@@ -1,26 +1,20 @@
 import 'package:flutter/material.dart';
-import 'ai_trip_step1_screen.dart';
 import 'notifications_screen.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
 import "trip_planning_screen.dart";
 
 class AiTripScreen extends StatefulWidget {
   const AiTripScreen({super.key});
-
   @override
   State<AiTripScreen> createState() => _AiTripScreenState();
 }
-
 class _AiTripScreenState extends State<AiTripScreen> {
   bool isAiSelected = true;
-
   void navigate(bool aiSelected) {
     if (aiSelected == isAiSelected) return;
-
     setState(() {
       isAiSelected = aiSelected;
     });
-
     if (!aiSelected) {
       Navigator.push(
         context,
@@ -28,7 +22,6 @@ class _AiTripScreenState extends State<AiTripScreen> {
       );
     }
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,7 +44,6 @@ class _AiTripScreenState extends State<AiTripScreen> {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -85,7 +77,6 @@ class _AiTripScreenState extends State<AiTripScreen> {
           ],
         ),
       ),
-
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -93,7 +84,6 @@ class _AiTripScreenState extends State<AiTripScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-
               Center(
                 child: Container(
                   width: 300,
@@ -167,9 +157,7 @@ class _AiTripScreenState extends State<AiTripScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 25),
-
               Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
@@ -181,9 +169,7 @@ class _AiTripScreenState extends State<AiTripScreen> {
                   child: Image.asset("images/plan.jpg", fit: BoxFit.cover),
                 ),
               ),
-
               const SizedBox(height: 15),
-
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -217,7 +203,6 @@ class _AiTripScreenState extends State<AiTripScreen> {
                           ),
                         ),
                       ),
-
                       Positioned(
                         bottom: -8,
                         left: 1,
@@ -234,7 +219,6 @@ class _AiTripScreenState extends State<AiTripScreen> {
                   ),
                 ],
               ),
-
               const Text(
                 "Let’s start planning your vacation\ntrip automatically with AI",
                 style: TextStyle(
@@ -243,20 +227,15 @@ class _AiTripScreenState extends State<AiTripScreen> {
                   color: Color(0xff1A2B49),
                 ),
               ),
-
               const SizedBox(height: 10),
-
               buildCheckItem("Create the most appropriate travel path"),
               const SizedBox(height: 6),
               buildCheckItem("Adjust the length of your trip"),
               const SizedBox(height: 6),
               buildCheckItem("Set a budget according to what you want"),
               const SizedBox(height: 6),
-              buildCheckItem(
-                "Alone or with family, everything can be arranged",
-              ),
+              buildCheckItem("Alone or with family, everything can be arranged",),
               const SizedBox(height: 20),
-
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -269,12 +248,8 @@ class _AiTripScreenState extends State<AiTripScreen> {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const AiTripStep1Screen(),
-                      ),
-                    );
+                    Navigator.pushReplacementNamed(
+                        context, "/ai_trip_step1");
                   },
                   child: const Text(
                     "Start making a plan",
@@ -286,19 +261,14 @@ class _AiTripScreenState extends State<AiTripScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
             ],
           ),
         ),
       ),
-
-
       bottomNavigationBar: const AppFooter(currentIndex: 1),
-
     );
   }
-
   Widget buildCheckItem(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -317,7 +287,6 @@ class _AiTripScreenState extends State<AiTripScreen> {
     );
   }
 }
-
 class _BubbleTailClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
@@ -328,7 +297,6 @@ class _BubbleTailClipper extends CustomClipper<Path> {
     path.close();
     return path;
   }
-
   @override
   bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }
