@@ -4,7 +4,6 @@ import 'package:wajeeh/widgets/app_footer.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../providers/auth_provider.dart' as myAuth;
 
-
 class SettingPage extends StatelessWidget {
   const SettingPage({super.key});
 
@@ -78,7 +77,6 @@ class SettingPage extends StatelessWidget {
               ),
             ),
 
-
             const SizedBox(height: 16),
 
             Padding(
@@ -122,13 +120,22 @@ class SettingPage extends StatelessWidget {
 
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text("Personal Info",
-                  style: TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.bold)),
+              child: Text(
+                "Personal Info",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-            _settingTile(icon: Icons.person, title: "Profile",
-            onTap: () {
-              Navigator.pushNamed(context, '/profile');
-            }),
+            _settingTile(
+              icon: Icons.person,
+              title: "Profile",
+              onTap: () {
+                Navigator.pushNamed(context, '/profile');
+              },
+            ),
 
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -151,27 +158,58 @@ class SettingPage extends StatelessWidget {
 
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text("General",
-                  style: TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.bold)),
+              child: Text(
+                "General",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
-            _settingTile(icon: Icons.translate, title: "Language",
+            _settingTile(
+              icon: Icons.translate,
+              title: "Language",
               onTap: () {
                 Navigator.pushNamed(context, '/languagePreference');
               },
-              ),
-            _settingTile(icon: Icons.chat_bubble_outline, title: "Feedback",
+            ),
+            _settingTile(
+              icon: Icons.chat_bubble_outline,
+              title: "Feedback",
               onTap: () {
                 Navigator.pushNamed(context, '/user_feedback');
-              },),
+              },
+            ),
 
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Text("About",
-                  style: TextStyle(fontSize: 13, color: Colors.black54, fontWeight: FontWeight.bold)),
+              child: Text(
+                "About",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             _settingTile(
-                icon: Icons.description_outlined,
-                title: "Policies and Terms"),
+              icon: Icons.description_outlined,
+              title: "Policies and Terms",
+            ),
+
+            // -------- Static Dark Mode Toggle (UI only) --------
+            ListTile(
+              leading: const Icon(
+                Icons.nightlight_round,
+                color: Color(0xFF0C1C3D),
+              ),
+              title: const Text(
+                "Dark Mode",
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              ),
+              trailing: Switch(value: false, onChanged: (v) {}),
+            ),
 
             const Spacer(),
 
@@ -184,15 +222,17 @@ class SettingPage extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: darkBlue,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                  onPressed: () =>
-                    _showLogoutDialog(context),
+                  onPressed: () => _showLogoutDialog(context),
 
                   child: const Text(
                     "Log Out",
                     style: TextStyle(
-                        color: Colors.white, fontWeight: FontWeight.bold),
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -210,8 +250,7 @@ void _showLogoutDialog(BuildContext context) {
     context: context,
     barrierDismissible: false,
     builder: (_) => Dialog(
-      shape:
-      RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
@@ -238,18 +277,22 @@ void _showLogoutDialog(BuildContext context) {
                   await FirebaseAuth.instance.signOut();
                   if (!context.mounted) return;
                   Navigator.pushNamedAndRemoveUntil(
-                      context, "/login", (_) => false);
+                    context,
+                    "/login",
+                    (_) => false,
+                  );
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
-                  padding:
-                  const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Text("Log Out",
-                    style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  "Log Out",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -259,14 +302,15 @@ void _showLogoutDialog(BuildContext context) {
                 onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0C1C3D),
-                  padding:
-                  const EdgeInsets.symmetric(vertical: 12),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: const Text("Cancel",
-                    style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  "Cancel",
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ),
           ],
@@ -285,12 +329,11 @@ Widget _settingTile({
     leading: Icon(icon, color: const Color(0xFF0C1C3D)),
     title: Text(
       title,
-      style: const TextStyle(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
-      ),
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
     ),
     trailing: const Icon(Icons.chevron_right),
     onTap: onTap,
   );
 }
+
+ 
