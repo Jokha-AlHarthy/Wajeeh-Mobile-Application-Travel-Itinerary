@@ -4,21 +4,17 @@ import 'notifications_screen.dart';
 
 class AiTripStep5Screen extends StatefulWidget {
   const AiTripStep5Screen({super.key});
-
   @override
   State<AiTripStep5Screen> createState() => _AiTripStep5ScreenState();
 }
-
 class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
   int selectedIndex = 2;
-
   final options = [
     {"title": "Cheep", "subtitle": "Budget friendly and economical"},
-    {"title": "Balanced", "subtitle": "Adjust the budget as balanced as possible"},
-    {"title": "Luxury", "subtitle": "Travel expenses with high quality experience"},
-    {"title": "Flexible", "subtitle": "Arrange it yourself and there are no budget requirement"},
+    {"title": "Balanced", "subtitle": "Adjust the budget as balanced as possible",},
+    {"title": "Luxury", "subtitle": "Travel expenses with high quality experience",},
+    {"title": "Flexible", "subtitle": "Arrange it yourself and there are no budget requirement",},
   ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -36,7 +32,6 @@ class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
             fontSize: 20,
           ),
         ),
-
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -49,7 +44,6 @@ class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -83,14 +77,12 @@ class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
           ),
         ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 10),
-
             const Text(
               "Determine your travel budget",
               style: TextStyle(
@@ -99,27 +91,20 @@ class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
                 color: Color(0xff1A2B49),
               ),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
               "Determine your budget according to your wishes or needs for this trip",
-              style: TextStyle(
-                fontSize: 16,
-                color: Color(0xff1A2B49),
-              ),
+              style: TextStyle(fontSize: 16, color: Color(0xff1A2B49)),
             ),
-
             const SizedBox(height: 20),
-
             Expanded(
               child: ListView.separated(
                 itemCount: options.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 20),
+                separatorBuilder: (context, index) =>
+                    const SizedBox(height: 20),
                 itemBuilder: (context, index) {
                   final option = options[index];
                   final isSelected = selectedIndex == index;
-
                   return GestureDetector(
                     onTap: () {
                       setState(() {
@@ -146,8 +131,9 @@ class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
-                              color:
-                              isSelected ? Colors.orange : Color(0xff1A2B49),
+                              color: isSelected
+                                  ? Colors.orange
+                                  : Color(0xff1A2B49),
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -165,9 +151,7 @@ class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
                 },
               ),
             ),
-
             const SizedBox(height: 10),
-
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -184,7 +168,8 @@ class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
                   backgroundColor: const Color(0xff1A2B49),
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20)),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
                 child: const Text(
                   "Next Step",
@@ -196,7 +181,6 @@ class _AiTripStep5ScreenState extends State<AiTripStep5Screen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 60),
           ],
         ),
