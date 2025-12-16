@@ -31,13 +31,32 @@ class _RegisterPageState extends State<RegisterPage> {
     super.dispose();
   }
 
-  bool isPasswordStrong(String password) {
-    if (password.length < 8) return false;
-    if (!password.contains(RegExp(r'[A-Z]'))) return false;
-    if (!password.contains(RegExp(r'[a-z]'))) return false;
-    if (!password.contains(RegExp(r'[0-9]'))) return false;
-    if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) return false;
-    return true;
+  void showMessage(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  bool isValidFullName(String name) {
+    final regex =
+    RegExp(r"^[A-Za-z]{2,30}(?:[ '-][A-Za-z]{2,30})+$");
+    return regex.hasMatch(name);
+  }
+
+  bool isValidEmail(String value) {
+    final regex = RegExp(
+        r"^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,10}$");
+    return regex.hasMatch(value);
+  }
+
+  bool isValidPasswordFormat(String pass) {
+    final regex = RegExp(
+        r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$");
+    return regex.hasMatch(pass);
+  }
+
+  bool isValidPhone(String number) {
+    final regex = RegExp(r"^[79]\d{7}$");
+    return regex.hasMatch(number);
   }
 
   @override
@@ -53,7 +72,6 @@ class _RegisterPageState extends State<RegisterPage> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Image.asset("images/logo.png", height: 150),
-
               const SizedBox(height: 25),
 
               const Align(
@@ -91,12 +109,14 @@ class _RegisterPageState extends State<RegisterPage> {
                 hint: "Phone number",
                 controller: phone,
                 keyboardType: TextInputType.phone,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly
+                ],
                 prefixIcon: Icons.phone_outlined,
               ),
 
               const SizedBox(height: 12),
-              
+
               CustomTextField(
                 hint: "Password",
                 controller: password,
@@ -104,13 +124,13 @@ class _RegisterPageState extends State<RegisterPage> {
                 prefixIcon: Icons.lock_outline,
                 suffixIcon: IconButton(
                   icon: Icon(
-                    showPassword ? Icons.visibility_off : Icons.visibility,
-                    color: Color(0xFF0C1C3D),
+                    showPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                    color: const Color(0xFF0C1C3D),
                   ),
                   onPressed: () {
-                    setState(() {
-                      showPassword = !showPassword;
-                    });
+                    setState(() => showPassword = !showPassword);
                   },
                 ),
               ),
@@ -127,12 +147,11 @@ class _RegisterPageState extends State<RegisterPage> {
                     showConfirmPassword
                         ? Icons.visibility_off
                         : Icons.visibility,
-                    color: Color(0xFF0C1C3D),
+                    color: const Color(0xFF0C1C3D),
                   ),
                   onPressed: () {
-                    setState(() {
-                      showConfirmPassword = !showConfirmPassword;
-                    });
+                    setState(() =>
+                    showConfirmPassword = !showConfirmPassword);
                   },
                 ),
               ),
@@ -142,8 +161,8 @@ class _RegisterPageState extends State<RegisterPage> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () =>
-                      Navigator.pushReplacementNamed(context, "/login"),
+                  onPressed: () => Navigator.pushReplacementNamed(
+                      context, "/login"),
                   child: const Text(
                     "Already have account? Log in",
                     style: TextStyle(
@@ -156,7 +175,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
               const SizedBox(height: 10),
 
-              // SIGN UP BUTTON (unchanged)
               SizedBox(
                 width: 155,
                 height: 55,
@@ -164,64 +182,85 @@ class _RegisterPageState extends State<RegisterPage> {
                   onPressed: auth.isLoading
                       ? null
                       : () async {
-                    // SAME VALIDATIONS…
-                    if (password.text.trim() !=
-                        confirmPassword.text.trim()) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text("Passwords do not match")),
-                      );
+                    final full =
+                    fullName.text.trim();
+                    final mail =
+                    email.text.trim();
+                    final tel =
+                    phone.text.trim();
+                    final pass =
+                    password.text.trim();
+                    final cPass =
+                    confirmPassword.text.trim();
+
+                    if (full.isEmpty &&
+                        mail.isEmpty &&
+                        tel.isEmpty &&
+                        pass.isEmpty &&
+                        cPass.isEmpty) {
+                      showMessage(
+                          "Please enter all the required fields");
                       return;
                     }
 
-                    if (fullName.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                            Text("Please enter your full name")),
-                      );
+                    if (full.isEmpty) {
+                      showMessage(
+                          "Please enter your full name");
+                      return;
+                    }
+                    if (!isValidFullName(full)) {
+                      showMessage(
+                          "Please enter a valid full name");
                       return;
                     }
 
-                    if (email.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                            Text("Please enter your email address")),
-                      );
+                    if (mail.isEmpty) {
+                      showMessage(
+                          "Please enter your email address");
+                      return;
+                    }
+                    if (!isValidEmail(mail)) {
+                      showMessage(
+                          "Please enter a valid email address");
                       return;
                     }
 
-                    if (phone.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content:
-                            Text("Please enter your phone number")),
-                      );
+                    if (tel.isEmpty) {
+                      showMessage(
+                          "Please enter your phone number");
+                      return;
+                    }
+                    if (!isValidPhone(tel)) {
+                      showMessage(
+                          "Please enter a valid phone number");
                       return;
                     }
 
-                    if (!isPasswordStrong(password.text.trim())) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            "Password must include uppercase, lowercase, number, special character and be at least 8 characters.",
-                          ),
-                        ),
-                      );
+                    if (pass.isEmpty ||
+                        cPass.isEmpty) {
+                      showMessage(
+                          "Please enter your password & please enter confirmation password");
+                      return;
+                    }
+
+                    if (!isValidPasswordFormat(pass)) {
+                      showMessage(
+                          "Password must include uppercase, lowercase, number, special character and be at least 8 characters");
+                      return;
+                    }
+
+                    if (pass != cPass) {
+                      showMessage(
+                          "Passwords do not match");
                       return;
                     }
 
                     final ok = await auth.register(
-                      email: email.text.trim(),
-                      password: password.text.trim(),
-                      fullName: fullName.text.trim(),
-                      phone: phone.text.trim(),
+                      email: mail,
+                      password: pass,
+                      fullName: full,
+                      phone: tel,
                     );
-
-                    print("REGISTER RESULT: $ok");
-                    print("ERROR: ${auth.error}");
-                    print("OTP EMAIL: ${auth.otpEmail}");
 
                     if (!mounted) return;
 
@@ -229,33 +268,36 @@ class _RegisterPageState extends State<RegisterPage> {
                       Navigator.pushReplacementNamed(
                         context,
                         "/otp",
-                        arguments: email.text.trim(),
+                        arguments: mail,
                       );
                     } else if (auth.error != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(auth.error!)),
-                      );
+                      showMessage(auth.error!);
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0C1C3D),
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.zero,
+                    backgroundColor:
+                    const Color(0xFF0C1C3D),
+                    shape:
+                    const RoundedRectangleBorder(
+                      borderRadius:
+                      BorderRadius.zero,
                     ),
                   ),
                   child: auth.isLoading
                       ? const SizedBox(
                     height: 22,
                     width: 22,
-                    child: CircularProgressIndicator(
+                    child:
+                    CircularProgressIndicator(
                       strokeWidth: 2,
                       color: Colors.white,
                     ),
                   )
                       : const Text(
                     "Sign Up",
-                    style:
-                    TextStyle(fontSize: 18, color: Colors.white),
+                    style: TextStyle(
+                        fontSize: 18,
+                        color: Colors.white),
                   ),
                 ),
               ),
@@ -265,18 +307,26 @@ class _RegisterPageState extends State<RegisterPage> {
               Row(
                 children: [
                   Expanded(
-                      child:
-                      Container(height: 1, color: Colors.grey.shade400)),
+                      child: Container(
+                          height: 1,
+                          color:
+                          Colors.grey.shade400)),
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    padding:
+                    EdgeInsets.symmetric(
+                        horizontal: 10),
                     child: Text(
                       "or sign up with",
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          fontWeight:
+                          FontWeight.bold),
                     ),
                   ),
                   Expanded(
-                      child:
-                      Container(height: 1, color: Colors.grey.shade400)),
+                      child: Container(
+                          height: 1,
+                          color:
+                          Colors.grey.shade400)),
                 ],
               ),
 
@@ -286,22 +336,19 @@ class _RegisterPageState extends State<RegisterPage> {
                 onTap: auth.isLoading
                     ? null
                     : () async {
-                  final ok = await auth.googleLogin();
-
-                  print("GOOGLE OK: $ok");
-                  print("GOOGLE ERROR: ${auth.error}");
-                  print("GOOGLE OTP EMAIL: ${auth.otpEmail}");
+                  final ok =
+                  await auth.googleLogin();
 
                   if (ok) {
-                    Navigator.pushReplacementNamed(
+                    Navigator
+                        .pushReplacementNamed(
                       context,
                       "/otp",
-                      arguments: auth.otpEmail,
+                      arguments:
+                      auth.otpEmail,
                     );
                   } else if (auth.error != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(auth.error!)),
-                    );
+                    showMessage(auth.error!);
                   }
                 },
                 child: Image.asset(
@@ -309,7 +356,6 @@ class _RegisterPageState extends State<RegisterPage> {
                   height: 35,
                 ),
               ),
-
               const SizedBox(height: 15),
             ],
           ),
