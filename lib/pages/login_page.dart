@@ -9,12 +9,28 @@ class LoginPage extends StatefulWidget {
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
-
 class _LoginPageState extends State<LoginPage> {
   final email = TextEditingController();
   final password = TextEditingController();
   bool showPassword = false;
 
+  @override
+  void dispose() {
+    email.dispose();
+    password.dispose();
+    super.dispose();
+  }
+
+  void showMessage(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  bool isValidEmail(String value) {
+    final regex = RegExp(
+        r"^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,255}\.[A-Za-z]{2,10}$");
+    return regex.hasMatch(value);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,12 +45,11 @@ class _LoginPageState extends State<LoginPage> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Image.asset("images/logo.png", height: 170),
-
               const SizedBox(height: 40),
 
-              Align(
+              const Align(
                 alignment: Alignment.centerLeft,
-                child: const Text(
+                child: Text(
                   "Log in to access your trips",
                   style: TextStyle(
                     fontSize: 17,
@@ -44,7 +59,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
 
-              const SizedBox(height: 5),
+              const SizedBox(height: 12),
 
               CustomTextField(
                 hint: "Email",
@@ -62,23 +77,24 @@ class _LoginPageState extends State<LoginPage> {
                 prefixIcon: Icons.lock_outline,
                 suffixIcon: IconButton(
                   icon: Icon(
-                    showPassword ? Icons.visibility_off : Icons.visibility,
-                    color: Color(0xFF0C1C3D),
+                    showPassword
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                    color: const Color(0xFF0C1C3D),
                   ),
                   onPressed: () {
-                    setState(() {
-                      showPassword = !showPassword;
-                    });
+                    setState(() => showPassword = !showPassword);
                   },
                 ),
               ),
 
-              const SizedBox(height: 5),
+              const SizedBox(height: 8),
 
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () => Navigator.pushNamed(context, "/forgot"),
+                  onPressed: () =>
+                      Navigator.pushNamed(context, "/forgot"),
                   child: const Text(
                     "Forgot Password?",
                     style: TextStyle(
@@ -89,7 +105,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
 
-              const SizedBox(height: 5),
+              const SizedBox(height: 10),
 
               SizedBox(
                 width: 155,
@@ -98,12 +114,35 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: auth.isLoading
                       ? null
                       : () async {
-                    final ok = await auth.login(
-                      email.text.trim(),
-                      password.text.trim(),
-                    );
+                    final mail = email.text.trim();
+                    final pass = password.text.trim();
+                    if (mail.isEmpty && pass.isEmpty) {
+                      showMessage(
+                          "Please enter all required fields");
+                      return;
+                    }
+
+                    if (mail.isEmpty) {
+                      showMessage(
+                          "Please enter your email address");
+                      return;
+                    }
+
+                    if (!isValidEmail(mail)) {
+                      showMessage("Invalid Credentials");
+                      return;
+                    }
+
+                    if (pass.isEmpty) {
+                      showMessage(
+                          "Please enter your password");
+                      return;
+                    }
+
+                    final ok = await auth.login(mail, pass);
 
                     if (!mounted) return;
+
                     if (ok) {
                       if (auth.isAdmin) {
                         Navigator.pushReplacementNamed(
@@ -112,10 +151,8 @@ class _LoginPageState extends State<LoginPage> {
                         Navigator.pushReplacementNamed(
                             context, "/home");
                       }
-                    } else if (auth.error != null) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(auth.error!)),
-                      );
+                    } else {
+                      showMessage("Invalid Credentials");
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -124,9 +161,8 @@ class _LoginPageState extends State<LoginPage> {
                       color: Color(0xFF0C1C3D),
                       width: 2,
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 15),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(0),
+                    shape: const RoundedRectangleBorder(
+                      borderRadius: BorderRadius.zero,
                     ),
                   ),
                   child: auth.isLoading
@@ -154,19 +190,23 @@ class _LoginPageState extends State<LoginPage> {
               Row(
                 children: [
                   Expanded(
-                    child: Container(height: 1, color: Colors.grey.shade400),
-                  ),
+                      child: Container(
+                          height: 1,
+                          color: Colors.grey.shade400)),
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 10),
+                    padding:
+                    EdgeInsets.symmetric(horizontal: 10),
                     child: Text("or"),
                   ),
                   Expanded(
-                    child: Container(height: 1, color: Colors.grey.shade400),
-                  ),
+                      child: Container(
+                          height: 1,
+                          color: Colors.grey.shade400)),
                 ],
               ),
 
               const SizedBox(height: 12),
+
               const Text(
                 "Login using",
                 style: TextStyle(
@@ -181,24 +221,26 @@ class _LoginPageState extends State<LoginPage> {
                 onTap: auth.isLoading
                     ? null
                     : () async {
-                  final ok = await auth.googleLogin();
+                  final ok =
+                  await auth.googleLogin();
                   if (!mounted) return;
+
                   if (ok) {
-                    Navigator.pushReplacementNamed(context, "/home");
-                  } else if (auth.error != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(auth.error!)),
-                    );
+                    Navigator.pushReplacementNamed(
+                        context, "/home");
+                  } else {
+                    showMessage("Invalid Credentials");
                   }
                 },
-                child: Image.asset("images/google.png", height: 35),
+                child: Image.asset(
+                  "images/google.png",
+                  height: 35,
+                ),
               ),
 
               const SizedBox(height: 20),
 
-              TextButton(
-                onPressed: () =>
-                    Navigator.pushReplacementNamed(context, "/register"),
+              TextButton(onPressed: () =>Navigator.pushReplacementNamed(context, "/register"),
                 child: const Text(
                   "Create a new account",
                   style: TextStyle(
