@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'ai_trip_step5_screen.dart';
 import 'notifications_screen.dart';
 
-
 class AiTripStep4Screen extends StatefulWidget {
   const AiTripStep4Screen({super.key});
-
   @override
   State<AiTripStep4Screen> createState() => _AiTripStep4ScreenState();
 }
-
 class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
   final List<String> options = [
     "Adventure",
@@ -22,14 +19,12 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
     "Cultural Exploration",
     "Camp",
   ];
-
   final Set<String> selectedOptions = {
     "Historical",
     "Relaxing",
     "Road Trip",
     "Food Tourism",
   };
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -47,7 +42,6 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
             fontSize: 20,
           ),
         ),
-
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -60,7 +54,6 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -94,7 +87,6 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
           ),
         ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
@@ -112,13 +104,9 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
             const SizedBox(height: 8),
             const Text(
               "Choose several references for your trip so\nthat they are more suitable and accurate",
-              style: TextStyle(
-                fontSize: 16,
-                color: Color(0xff1A2B49),
-              ),
+              style: TextStyle(fontSize: 16, color: Color(0xff1A2B49)),
             ),
             const SizedBox(height: 25),
-
             Wrap(
               spacing: 16,
               runSpacing: 13,
@@ -140,7 +128,9 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
                       horizontal: 16,
                     ),
                     decoration: BoxDecoration(
-                      color: isSelected ? const Color(0xffF2A400) : Colors.white,
+                      color: isSelected
+                          ? const Color(0xffF2A400)
+                          : Colors.white,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: const Color(0xff1A2B49),
@@ -150,7 +140,9 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
                     child: Text(
                       option,
                       style: TextStyle(
-                        color: isSelected ? Colors.black : const Color(0xff1A2B49),
+                        color: isSelected
+                            ? Colors.black
+                            : const Color(0xff1A2B49),
                         fontWeight: FontWeight.w500,
                         fontSize: 14,
                       ),
@@ -159,9 +151,7 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
                 );
               }).toList(),
             ),
-
             const Spacer(),
-
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -191,7 +181,6 @@ class _AiTripStep4ScreenState extends State<AiTripStep4Screen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 60),
           ],
         ),
