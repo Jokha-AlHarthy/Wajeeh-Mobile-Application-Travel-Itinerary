@@ -4,24 +4,19 @@ import 'ai_trip_overview_list.dart';
 
 class TripLoadingDialog extends StatefulWidget {
   const TripLoadingDialog({super.key});
-
   @override
   State<TripLoadingDialog> createState() => _TripLoadingDialogState();
 }
-
 class _TripLoadingDialogState extends State<TripLoadingDialog>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-
   @override
   void initState() {
     super.initState();
-
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2500),
     )..forward();
-
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (mounted) {
         Navigator.of(context).pop();
@@ -32,13 +27,11 @@ class _TripLoadingDialogState extends State<TripLoadingDialog>
       }
     });
   }
-
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     return Center(
