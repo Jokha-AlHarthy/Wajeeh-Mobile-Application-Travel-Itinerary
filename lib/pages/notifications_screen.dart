@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
-
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
@@ -12,26 +11,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     {
       "title": "Reminder: Passport Expiry",
       "time": "Yesterday, 08:30 AM",
-      "body":
-      "Your passport expires in 28 days. Renew it before your trip to Kuwait.",
+      "body": "Your passport expires in 28 days. Renew it before your trip to Kuwait.",
       "isRead": false,
     },
     {
       "title": "Weather Alert: Rain in Kuwait",
       "time": "Tomorrow, 10:00 AM",
-      "body":
-      "Heavy rain expected on Day 2 of your Kuwait trip. Consider indoor activities.",
+      "body": "Heavy rain expected on Day 2 of your Kuwait trip. Consider indoor activities.",
       "isRead": false,
     },
     {
       "title": "Flight Update: Delayed",
       "time": "Today at 3:35 PM",
       "body":
-      "Your flight Airbus A330 to Kuwait has been delayed by 1h 30m. Check details.",
+          "Your flight Airbus A330 to Kuwait has been delayed by 1h 30m. Check details.",
       "isRead": false,
     },
   ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -41,10 +37,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         backgroundColor: const Color(0xffF5EFE4),
         elevation: 0,
         centerTitle: true,
-        title: Image.asset(
-          "images/logo.png",
-          height: 55,
-        ),
+        title: Image.asset("images/logo.png", height: 55),
         actions: [
           Transform.rotate(
             angle: 0.2,
@@ -62,7 +55,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-
             const Text(
               "Notifications Center",
               style: TextStyle(
@@ -71,9 +63,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 color: Color(0xff1A2B49),
               ),
             ),
-
             const SizedBox(height: 20),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -129,7 +119,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 },
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(
-                                      vertical: 8, horizontal: 22),
+                                    vertical: 8,
+                                    horizontal: 22,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: const Color(0xff0C1B33),
                                     borderRadius: BorderRadius.circular(10),
@@ -145,7 +137,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               const SizedBox(width: 12),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                    vertical: 8, horizontal: 28),
+                                  vertical: 8,
+                                  horizontal: 28,
+                                ),
                                 decoration: BoxDecoration(
                                   color: const Color(0xffE04F4F),
                                   borderRadius: BorderRadius.circular(10),
