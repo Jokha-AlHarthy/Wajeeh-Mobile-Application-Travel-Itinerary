@@ -4,14 +4,12 @@ import 'notifications_screen.dart';
 
 class AiTripStep1Screen extends StatefulWidget {
   const AiTripStep1Screen({super.key});
-
   @override
   State<AiTripStep1Screen> createState() => _AiTripStep1ScreenState();
 }
 
 class _AiTripStep1ScreenState extends State<AiTripStep1Screen> {
   String selectedCountry = "Oman";
-
   final List<Map<String, String>> countries = [
     {"name": "Oman", "flag": "images/oman.png"},
     {"name": "Qatar", "flag": "images/qatar.png"},
@@ -20,7 +18,6 @@ class _AiTripStep1ScreenState extends State<AiTripStep1Screen> {
     {"name": "Saudi Arabia", "flag": "images/saudi.png"},
     {"name": "United Arab Emirates", "flag": "images/uae.png"},
   ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -38,7 +35,6 @@ class _AiTripStep1ScreenState extends State<AiTripStep1Screen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -51,7 +47,6 @@ class _AiTripStep1ScreenState extends State<AiTripStep1Screen> {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -85,7 +80,6 @@ class _AiTripStep1ScreenState extends State<AiTripStep1Screen> {
           ),
         ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
@@ -106,7 +100,6 @@ class _AiTripStep1ScreenState extends State<AiTripStep1Screen> {
               style: TextStyle(fontSize: 16, color: Color(0xff1A2B49)),
             ),
             const SizedBox(height: 20),
-
             Expanded(
               child: ListView.separated(
                 itemCount: countries.length,
@@ -160,7 +153,6 @@ class _AiTripStep1ScreenState extends State<AiTripStep1Screen> {
                 },
               ),
             ),
-
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -201,13 +193,11 @@ class _AiTripStep1ScreenState extends State<AiTripStep1Screen> {
 class RadioButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onPressed;
-
   const RadioButton({
     super.key,
     required this.selected,
     required this.onPressed,
   });
-
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
