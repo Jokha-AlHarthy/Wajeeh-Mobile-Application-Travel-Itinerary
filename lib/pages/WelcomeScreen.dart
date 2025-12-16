@@ -16,11 +16,8 @@ class WelcomePage extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // Logo
               Image.asset("images/logo.png", height: 150),
               const SizedBox(height: 20),
-
-              // Headline
               const Text(
                 "Plan your dream trip in minutes",
                 style: TextStyle(
@@ -30,8 +27,6 @@ class WelcomePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 30),
-
-              // Subheadline
               const Text(
                 "Seamlessly plan and book your perfect getaway with ease",
                 style: TextStyle(
@@ -41,18 +36,13 @@ class WelcomePage extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
-
-              // Illustration
               Image.asset("images/illustration.png", height: 350),
               const SizedBox(height: 30),
-
-              // Buttons in the same row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly, // Evenly space the buttons
                 children: [
                   ElevatedButton(
                     onPressed: () {
-                      // Navigate to the Sign Up screen
                       Navigator.pushNamed(context, "/register");
                     },
                     style: ElevatedButton.styleFrom(
@@ -70,7 +60,6 @@ class WelcomePage extends StatelessWidget {
                   ),
                   ElevatedButton(
                     onPressed: () {
-                      // Navigate to the Log In screen
                       Navigator.pushNamed(context, "/login");
                     },
                     style: ElevatedButton.styleFrom(
@@ -93,7 +82,6 @@ class WelcomePage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 40),
-              // Footer links
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
