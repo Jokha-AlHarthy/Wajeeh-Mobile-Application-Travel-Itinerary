@@ -2,41 +2,34 @@ import 'package:flutter/material.dart';
 
 class LanguageScreen extends StatefulWidget {
   const LanguageScreen({super.key});
-
   @override
   State<LanguageScreen> createState() => _LanguageScreenState();
 }
 
 class _LanguageScreenState extends State<LanguageScreen> {
   String? selectedLanguage;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xffF5EFE4),
-
       appBar: AppBar(
         leading: const BackButton(color: Colors.black),
         backgroundColor: const Color(0xffF5EFE4),
         elevation: 0,
         centerTitle: true,
-
         title: Image.asset("images/logo.png", height: 55),
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const SizedBox(height: 20),
-
             const Text(
               "Select your Language",
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-
                 color: Color(0xff1A2B49),
               ),
             ),
@@ -45,9 +38,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
               "Select how you want Wajeeh to speak to you",
               style: TextStyle(color: Color(0xff1A2B49)),
             ),
-
             const SizedBox(height: 15),
-
             const Align(
               alignment: Alignment.centerLeft,
               child: Text(
@@ -58,9 +49,7 @@ class _LanguageScreenState extends State<LanguageScreen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 15),
-
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
@@ -97,8 +86,6 @@ class _LanguageScreenState extends State<LanguageScreen> {
               ),
             ),
             const SizedBox(height: 300),
-
-
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -119,7 +106,6 @@ class _LanguageScreenState extends State<LanguageScreen> {
                 ),
               ),
             ),
-
           ],
         ),
       ),
