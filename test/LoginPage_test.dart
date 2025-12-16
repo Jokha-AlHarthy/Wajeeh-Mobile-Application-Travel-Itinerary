@@ -99,10 +99,16 @@ void main() {
       await tester.pumpWidget(createLoginPage());
 
       await tester.tap(find.text('Log in'));
-      await tester.pump();
 
-      expect(find.text('Invalid Credentials'), findsOneWidget);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+
+      expect(
+        find.text('Please enter all required fields'),
+        findsOneWidget,
+      );
     });
+
 
     testWidgets('Valid login navigates to home', (tester) async {
       await tester.pumpWidget(createLoginPage());
@@ -135,3 +141,5 @@ void main() {
     });
   });
 }
+
+ 
