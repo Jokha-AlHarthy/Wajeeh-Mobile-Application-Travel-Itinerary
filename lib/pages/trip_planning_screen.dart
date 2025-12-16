@@ -5,17 +5,13 @@ import 'trip_detail_screen.dart';
 import 'rate_screen.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
 
-
 class TripPlanningScreen extends StatefulWidget {
   const TripPlanningScreen({super.key});
-
   @override
   State<TripPlanningScreen> createState() => _TripPlanningScreenState();
 }
-
 class _TripPlanningScreenState extends State<TripPlanningScreen> {
   bool isAiSelected = false;
-
   final List<Map<String, dynamic>> trips = [
     {
       "status": "On Going",
@@ -51,7 +47,6 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
       "image": "images/manama.jpg",
     },
   ];
-
   void navigate(bool aiSelected) {
     if (aiSelected == isAiSelected) return;
     setState(() {
@@ -64,7 +59,6 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
       );
     }
   }
-
   void openRateOverlay(Map<String, dynamic> trip) {
     Navigator.of(context).push(
       PageRouteBuilder(
@@ -84,7 +78,6 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -102,13 +95,19 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
                 );
               },
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  const Icon(Icons.notifications, size: 28, color: Colors.black),
+                  const Icon(
+                    Icons.notifications,
+                    size: 28,
+                    color: Colors.black,
+                  ),
                   Positioned(
                     right: -1,
                     top: -2,
@@ -141,7 +140,7 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              // ---------------- TOGGLE ----------------
+              
               Center(
                 child: Container(
                   width: 300,
@@ -153,8 +152,9 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                   child: Stack(
                     children: [
                       AnimatedAlign(
-                        alignment:
-                        isAiSelected ? Alignment.centerRight : Alignment.centerLeft,
+                        alignment: isAiSelected
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeInOut,
                         child: Container(
@@ -173,7 +173,8 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                                 Navigator.pushReplacement(
                                   context,
                                   MaterialPageRoute(
-                                      builder: (_) => const TripPlanningScreen()),
+                                    builder: (_) => const TripPlanningScreen(),
+                                  ),
                                 );
                               },
                               child: Center(
@@ -214,7 +215,7 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                 ),
               ),
               const SizedBox(height: 25),
-              // ---------------- TRIP LIST ----------------
+            
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -222,7 +223,6 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                 itemBuilder: (context, index) {
                   final t = trips[index];
                   bool isOngoing = t["status"] == "On Going";
-
                   return Container(
                     margin: const EdgeInsets.only(bottom: 22),
                     padding: const EdgeInsets.all(14),
@@ -235,13 +235,12 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                           color: Colors.black.withValues(alpha: 0.08),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
-                        )
+                        ),
                       ],
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // IMAGE + INFO
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -259,17 +258,21 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // ---------------- STATUS LEFT + DATE RIGHT ----------------
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Container(
                                         padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 2),
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
                                         decoration: BoxDecoration(
                                           color: (t["statusColor"] as Color)
                                               .withValues(alpha: 0.15),
-                                          borderRadius: BorderRadius.circular(6),
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
                                         ),
                                         child: Text(
                                           t["status"] as String,
@@ -301,9 +304,11 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      Icon(Icons.location_on,
-                                          size: 16,
-                                          color: Colors.grey.shade600),
+                                      Icon(
+                                        Icons.location_on,
+                                        size: 16,
+                                        color: Colors.grey.shade600,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         t["country"] as String,
@@ -314,8 +319,11 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      const Icon(Icons.star,
-                                          size: 16, color: Colors.amber),
+                                      const Icon(
+                                        Icons.star,
+                                        size: 16,
+                                        color: Colors.amber,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         t["rating"] as String,
@@ -324,22 +332,24 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                                     ],
                                   ),
                                   const SizedBox(height: 6),
-                                  // ---------------- PERSONS LEFT + PRICE RIGHT ----------------
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
                                         t["persons"] as String,
                                         style: const TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600),
+                                          fontSize: 13,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                       Text(
                                         t["price"] as String,
                                         style: const TextStyle(
-                                            fontSize: 17,
-                                            fontWeight: FontWeight.bold,
-                                            color: Color(0xFF0D2B49)),
+                                          fontSize: 17,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF0D2B49),
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -349,7 +359,6 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        // Buttons
                         Row(
                           children: [
                             if (!isOngoing) ...[
@@ -361,15 +370,17 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                                     decoration: BoxDecoration(
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                          color: const Color(0xFF0D2B49),
-                                          width: 2),
+                                        color: const Color(0xFF0D2B49),
+                                        width: 2,
+                                      ),
                                     ),
                                     alignment: Alignment.center,
                                     child: const Text(
                                       "Rate",
                                       style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: Color(0xFF0D2B49)),
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF0D2B49),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -389,7 +400,8 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                                         budget: t["price"],
                                         image: t["image"],
                                         country: t["country"],
-                                        rating: double.tryParse(t["rating"]) ?? 4.8,
+                                        rating:
+                                            double.tryParse(t["rating"]) ?? 4.8,
                                       ),
                                     ),
                                   );
@@ -404,8 +416,9 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
                                   child: const Text(
                                     "Detail",
                                     style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white),
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -422,7 +435,6 @@ class _TripPlanningScreenState extends State<TripPlanningScreen> {
         ),
       ),
       bottomNavigationBar: const AppFooter(currentIndex: 1),
-
     );
   }
 }
