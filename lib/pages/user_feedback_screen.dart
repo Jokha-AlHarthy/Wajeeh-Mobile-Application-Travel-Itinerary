@@ -3,11 +3,9 @@ import 'notifications_screen.dart';
 
 class UserFeedbackScreen extends StatefulWidget {
   const UserFeedbackScreen({super.key});
-
   @override
   State<UserFeedbackScreen> createState() => _UserFeedbackScreenState();
 }
-
 class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
   int rating = 3;
   final List<String> categories = [
@@ -17,24 +15,16 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
     "Other",
   ];
   String? selectedCategory;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5EFE4), // background
-
+      backgroundColor: const Color(0xFFF5EFE4), 
       appBar: AppBar(
-
         leading: const BackButton(color: Colors.black),
         backgroundColor: const Color(0xffF5EFE4),
         elevation: 0,
         centerTitle: true,
-
-        title: Image.asset(
-          "images/logo.png",
-          height: 55,
-        ),
-
+        title: Image.asset("images/logo.png", height: 55),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -42,10 +32,11 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const NotificationsScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const NotificationsScreen(),
+                  ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -79,10 +70,7 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
           ),
         ],
       ),
-
-
       body: SingleChildScrollView(
-
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
@@ -95,9 +83,7 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
                 color: Color(0xff1A2B49),
               ),
             ),
-
             const SizedBox(height: 30),
-
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(50),
@@ -117,16 +103,12 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
                       color: Color(0xff1A2B49),
                     ),
                   ),
-
                   const SizedBox(height: 4),
                   const Text(
                     "How would you rate overall, experience?",
-                    style: TextStyle(color: Color(0xff1A2B49),fontSize: 14,
-                    ),
+                    style: TextStyle(color: Color(0xff1A2B49), fontSize: 14),
                   ),
-
                   const SizedBox(height: 5),
-
                   Row(
                     children: List.generate(5, (i) {
                       return IconButton(
@@ -143,19 +125,15 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
                       );
                     }),
                   ),
-
                   const SizedBox(height: 10),
-
-                Container(
-                  alignment: Alignment.centerLeft,
-                  child: const Text(
-                    "Category",
-                    style: TextStyle(color: Color(0xff1A2B49)),
+                  Container(
+                    alignment: Alignment.centerLeft,
+                    child: const Text(
+                      "Category",
+                      style: TextStyle(color: Color(0xff1A2B49)),
+                    ),
                   ),
-                ),
-
-                const SizedBox(height: 10),
-
+                  const SizedBox(height: 10),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
@@ -176,40 +154,42 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
                       items: categories
                           .map(
                             (e) => DropdownMenuItem(
-                          value: e,
-                          child: Text(
-                            e,
-                            style: const TextStyle(color: Color(0xff1A2B49)),
-                          ),
-                        ),
-                      )
+                              value: e,
+                              child: Text(
+                                e,
+                                style: const TextStyle(
+                                  color: Color(0xff1A2B49),
+                                ),
+                              ),
+                            ),
+                          )
                           .toList(),
                       onChanged: (v) => setState(() => selectedCategory = v),
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   Container(
-                    height: 100,
+                    height: 120,
                     decoration: BoxDecoration(
                       border: Border.all(color: const Color(0xff1A2B49)),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    padding: const EdgeInsets.all(12),
-                    child: const TextField(
+                    child: TextField(
                       maxLines: null,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
+                        filled: true,
+                        fillColor: Color(0xffF5EFE4),
                         border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.all(12),
                         hintText: "Write your feedback",
                         hintStyle: TextStyle(color: Color(0xff1A2B49)),
                       ),
-                      style: TextStyle(color: Color(0xff1A2B49)),
+                      style: const TextStyle(color: Color(0xff1A2B49)),
                     ),
                   ),
-
                   const SizedBox(height: 30),
-
                   SizedBox(
                     width: double.infinity,
                     height: 55,
@@ -224,9 +204,10 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
                       onPressed: () {},
                       child: const Text(
                         "Submit",
-                        style: TextStyle(color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
