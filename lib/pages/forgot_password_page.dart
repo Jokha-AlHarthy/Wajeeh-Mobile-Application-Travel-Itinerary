@@ -26,7 +26,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Reset Password'),
+        title: const Text('Forget Password'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
