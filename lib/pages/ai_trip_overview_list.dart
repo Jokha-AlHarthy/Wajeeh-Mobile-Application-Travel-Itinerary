@@ -4,7 +4,6 @@ import 'notifications_screen.dart';
 
 class TripOverviewScreen extends StatelessWidget {
   const TripOverviewScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     final trips = [
@@ -39,7 +38,6 @@ class TripOverviewScreen extends StatelessWidget {
         "image": "images/sur.jpg",
       },
     ];
-
     return Scaffold(
       backgroundColor: const Color(0xffF5EFE4),
       appBar: AppBar(
@@ -55,7 +53,6 @@ class TripOverviewScreen extends StatelessWidget {
             color: Color(0xff1A2B49),
           ),
         ),
-
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -68,7 +65,6 @@ class TripOverviewScreen extends StatelessWidget {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -102,13 +98,11 @@ class TripOverviewScreen extends StatelessWidget {
           ),
         ],
       ),
-
       body: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: trips.length,
         itemBuilder: (context, index) {
           final t = trips[index];
-
           return GestureDetector(
             onTap: () {
               Navigator.push(
@@ -124,7 +118,6 @@ class TripOverviewScreen extends StatelessWidget {
                 ),
               );
             },
-
             child: Container(
               margin: const EdgeInsets.only(bottom: 20),
               decoration: BoxDecoration(
@@ -146,7 +139,6 @@ class TripOverviewScreen extends StatelessWidget {
                       fit: BoxFit.cover,
                     ),
                   ),
-
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
                     child: Column(
@@ -161,9 +153,7 @@ class TripOverviewScreen extends StatelessWidget {
                             color: Color(0xff1A2B49),
                           ),
                         ),
-
                         const SizedBox(height: 10),
-
                         Row(
                           mainAxisAlignment: MainAxisAlignment.start,
                           children: [
@@ -181,7 +171,6 @@ class TripOverviewScreen extends StatelessWidget {
                               ],
                             ),
                             const SizedBox(width: 50),
-
                             const Icon(Icons.location_city, size: 18),
                             Text(
                               t["hotel"] as String,
@@ -189,9 +178,7 @@ class TripOverviewScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 12),
-
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -208,9 +195,7 @@ class TripOverviewScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 8),
-
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -227,16 +212,12 @@ class TripOverviewScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 12),
-
                         Container(
                           height: 1,
                           color: Colors.black.withValues(alpha: 0.15),
                         ),
-
                         const SizedBox(height: 8),
-
                         Row(
                           children: [
                             Expanded(
