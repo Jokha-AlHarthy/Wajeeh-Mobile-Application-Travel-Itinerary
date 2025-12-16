@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'ai_trip_step1_screen.dart';
 import 'notifications_screen.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
 import "trip_planning_screen.dart";
@@ -248,8 +249,12 @@ class _AiTripScreenState extends State<AiTripScreen> {
                     ),
                   ),
                   onPressed: () {
-                    Navigator.pushReplacementNamed(
-                        context, "/ai_trip_step1");
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const AiTripStep1Screen(),
+                      ),
+                    );
                   },
                   child: const Text(
                     "Start making a plan",
