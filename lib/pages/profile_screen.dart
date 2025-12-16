@@ -3,14 +3,12 @@ import 'notifications_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
-
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
   bool isMale = true;
-
   void _openChangePhotoDialog() {
     showDialog(
       context: context,
@@ -76,7 +74,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
   }
-
   Widget _dialogButton({
     required IconData icon,
     required String text,
@@ -104,7 +101,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -134,7 +130,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -179,7 +174,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 clipBehavior: Clip.none,
                 children: [
                   ClipRRect(
-
                     borderRadius: BorderRadius.circular(14),
                     child: Image.asset(
                       "images/sky.jpg",
@@ -261,8 +255,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 8),
 
             _inputField(
-              "Date of Birth",
-              "12 February 1998",
+              "Date of Birth", "12 February 1998",
               suffixIcon: Icons.calendar_today_outlined,
             ),
             const SizedBox(height: 8),
@@ -279,7 +272,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
             SizedBox(height: 8),
-
             Row(
               children: [
                 _genderButton("Male", isMale, () {
@@ -324,7 +316,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
   Widget _inputField(String label, String value, {IconData? suffixIcon}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -364,7 +355,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ],
     );
   }
-
   Widget _genderButton(String text, bool active, VoidCallback onTap) {
     return Expanded(
       child: GestureDetector(
