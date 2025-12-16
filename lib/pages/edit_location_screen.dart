@@ -3,14 +3,11 @@ import 'package:wajeeh/widgets/app_footer.dart';
 
 class EditLocationScreen extends StatefulWidget {
   const EditLocationScreen({super.key});
-
   @override
   State<EditLocationScreen> createState() => _EditLocationScreenState();
 }
-
 class _EditLocationScreenState extends State<EditLocationScreen> {
   final TextEditingController searchController = TextEditingController();
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -20,20 +17,11 @@ class _EditLocationScreenState extends State<EditLocationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Back button + logo
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  "images/logo.png",
-                  height: 95,
-                ),
-              ],
+              children: [Image.asset("images/logo.png", height: 95)],
             ),
-
-
             const SizedBox(height: 8),
-
             const Text(
               "Edit your location",
               style: TextStyle(
@@ -42,20 +30,11 @@ class _EditLocationScreenState extends State<EditLocationScreen> {
                 color: Color(0xFF0C1C3D),
               ),
             ),
-
             const SizedBox(height: 8),
-
-            const Text(
-              "Choose your new location and let Wajeeh guide your next journey.",
-              style: TextStyle(
-                fontSize: 14,
-                color: Color(0xFF0C1C3D),
-              ),
+            const Text("Choose your new location and let Wajeeh guide your next journey.",
+              style: TextStyle(fontSize: 14, color: Color(0xFF0C1C3D)),
             ),
-
             const SizedBox(height: 25),
-
-            // Search box
             TextField(
               controller: searchController,
               decoration: InputDecoration(
@@ -64,47 +43,37 @@ class _EditLocationScreenState extends State<EditLocationScreen> {
                 filled: true,
                 fillColor: Colors.white,
 
-                // Border when NOT focused
                 enabledBorder: OutlineInputBorder(
                   borderSide: const BorderSide(
-                    color: Color(0xFF0C1C3D), // 🔵 Your custom border color
+                    color: Color(0xFF0C1C3D), 
                     width: 1.5,
                   ),
                   borderRadius: BorderRadius.circular(10),
                 ),
-
-                // Border when focused
                 focusedBorder: OutlineInputBorder(
                   borderSide: const BorderSide(
-                    color: Color(0xFF0C1C3D), // 🔵 Same color but nicer focus
+                    color: Color(0xFF0C1C3D), 
                     width: 2,
                   ),
                   borderRadius: BorderRadius.circular(10),
                 ),
-
-                // Optional: remove default grey border
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
             ),
-
-
             const SizedBox(height: 15),
-
-            // Set location on map button
             Center(
               child: SizedBox(
                 width: 250,
                 height: 50,
                 child: OutlinedButton.icon(
-                  icon: const Icon(Icons.location_on_outlined, color: Color(0xFF0C1C3D)),
-                  label: const Text(
-                    "Set Location on Map",
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Color(0xFF0C1C3D),
-                    ),
+                  icon: const Icon(
+                    Icons.location_on_outlined,
+                    color: Color(0xFF0C1C3D),
+                  ),
+                  label: const Text("Set Location on Map",
+                    style: TextStyle(fontSize: 16, color: Color(0xFF0C1C3D)),
                   ),
                   style: OutlinedButton.styleFrom(
                     side: const BorderSide(color: Color(0xFF0C1C3D)),
@@ -112,15 +81,11 @@ class _EditLocationScreenState extends State<EditLocationScreen> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: () {
-
-                  },
+                  onPressed: () {},
                 ),
               ),
             ),
-
             const SizedBox(height: 25),
-
             const Text(
               "Current Location",
               style: TextStyle(
@@ -129,10 +94,7 @@ class _EditLocationScreenState extends State<EditLocationScreen> {
                 color: Color(0xFF0C1C3D),
               ),
             ),
-
             const SizedBox(height: 10),
-
-            // Map image preview
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: Image.asset(
@@ -142,10 +104,7 @@ class _EditLocationScreenState extends State<EditLocationScreen> {
                 width: double.infinity,
               ),
             ),
-
             const SizedBox(height: 30),
-
-            // Use current location button
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -161,14 +120,10 @@ class _EditLocationScreenState extends State<EditLocationScreen> {
                 ),
                 child: const Text(
                   "Update my current Location",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                  ),
+                  style: TextStyle(color: Colors.white, fontSize: 18),
                 ),
               ),
             ),
-
             const SizedBox(height: 30),
           ],
         ),
