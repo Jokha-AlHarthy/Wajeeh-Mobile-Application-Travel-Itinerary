@@ -4,28 +4,18 @@ import 'notifications_screen.dart';
 
 class AiTripStep2Screen extends StatefulWidget {
   const AiTripStep2Screen({super.key});
-
   @override
   State<AiTripStep2Screen> createState() => _AiTripStep2ScreenState();
 }
-
 class _AiTripStep2ScreenState extends State<AiTripStep2Screen> {
-  int selectedIndex = 2; // Default: "With Family" is selected
-
+  int selectedIndex = 2;
   final options = [
     {"title": "Only Me", "subtitle": "Traveling alone, just me"},
     {"title": "With a Couple", "subtitle": "A romantic trip just for us"},
-    {
-      "title": "With Family",
-      "subtitle": "Exciting trip with all family members",
-    },
+    {"title": "With Family", "subtitle": "Exciting trip with all family members",},
     {"title": "My Friend", "subtitle": "Traveling with friends hanging out"},
-    {
-      "title": "Business Trip",
-      "subtitle": "Traveling with goals, not just plans",
-    },
+    {"title": "Business Trip", "subtitle": "Traveling with goals, not just plans",},
   ];
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -55,7 +45,6 @@ class _AiTripStep2ScreenState extends State<AiTripStep2Screen> {
                   ),
                 );
               },
-
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
@@ -89,7 +78,6 @@ class _AiTripStep2ScreenState extends State<AiTripStep2Screen> {
           ),
         ],
       ),
-
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
@@ -104,16 +92,12 @@ class _AiTripStep2ScreenState extends State<AiTripStep2Screen> {
                 color: Color(0xff1A2B49),
               ),
             ),
-
             const SizedBox(height: 8),
-
             const Text(
               "Let's start by choosing who you’re going to go with",
               style: TextStyle(fontSize: 16, color: Color(0xff1A2B49)),
             ),
-
             const SizedBox(height: 20),
-
             Expanded(
               child: ListView.separated(
                 itemCount: options.length,
@@ -122,7 +106,6 @@ class _AiTripStep2ScreenState extends State<AiTripStep2Screen> {
                 itemBuilder: (context, index) {
                   final option = options[index];
                   final isSelected = selectedIndex == index;
-
                   return GestureDetector(
                     onTap: () {
                       setState(() {
@@ -169,9 +152,7 @@ class _AiTripStep2ScreenState extends State<AiTripStep2Screen> {
                 },
               ),
             ),
-
             const SizedBox(height: 10),
-
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -191,7 +172,6 @@ class _AiTripStep2ScreenState extends State<AiTripStep2Screen> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
-
                 child: const Text(
                   "Next Step",
                   style: TextStyle(
@@ -202,7 +182,6 @@ class _AiTripStep2ScreenState extends State<AiTripStep2Screen> {
                 ),
               ),
             ),
-
             const SizedBox(height: 60),
           ],
         ),
