@@ -3,10 +3,8 @@ import 'package:wajeeh/widgets/app_footer.dart';
 
 class FavoritePage extends StatelessWidget {
   const FavoritePage({super.key});
-
   static const cream = Color(0xffF7F1E8);
   static const darkBlue = Color(0xFF0C1C3D);
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -17,16 +15,11 @@ class FavoritePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // -------- TOP BAR -------- //
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const SizedBox(width: 40), // to balance layout
-
-                  // Center Logo
+                  const SizedBox(width: 40),
                   Image.asset("images/logo.png", height: 55),
-
-                  // Notification Button
                   GestureDetector(
                     onTap: () {
                       Navigator.pushNamed(context, '/notifications');
@@ -63,10 +56,7 @@ class FavoritePage extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: 10),
-
-              // -------- TITLE -------- //
               const Center(
                 child: Text(
                   "My Favorite",
@@ -77,16 +67,15 @@ class FavoritePage extends StatelessWidget {
                   ),
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // -------- SEARCH BOX -------- //
               Row(
                 children: [
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 14),
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(14),
@@ -95,10 +84,7 @@ class FavoritePage extends StatelessWidget {
                         children: [
                           Icon(Icons.search, color: Colors.grey),
                           SizedBox(width: 8),
-                          Text(
-                            "Search location",
-                            style: TextStyle(color: Colors.grey),
-                          ),
+                          Text("Search location", style: TextStyle(color: Colors.grey),),
                         ],
                       ),
                     ),
@@ -114,10 +100,7 @@ class FavoritePage extends StatelessWidget {
                   ),
                 ],
               ),
-
               const SizedBox(height: 20),
-
-              // -------- CATEGORY CHIPS -------- //
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
@@ -136,15 +119,12 @@ class FavoritePage extends StatelessWidget {
                   ],
                 ),
               ),
-
               const SizedBox(height: 20),
-
-              // -------- FAVORITE CARDS -------- //
               _FavoriteCard(
                 title: "Burj Khalifa",
                 country: "United Arab Emirates",
                 image:
-                "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTA1NFo2irXJ0RLEU8AhJY0Xuj9ZK_Fb_1ASw&s",
+                    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTA1NFo2irXJ0RLEU8AhJY0Xuj9ZK_Fb_1ASw&s",
                 price: "OMR 19-20 / Person",
               ),
               const SizedBox(height: 16),
@@ -152,31 +132,22 @@ class FavoritePage extends StatelessWidget {
                 title: "Sultan Qaboos Grand",
                 country: "Al Ghubrah, Muscat",
                 image:
-                "https://worldarchitecture.org/cdnimgfiles/extuploadc/coverpic-1-.jpg",
+                    "https://worldarchitecture.org/cdnimgfiles/extuploadc/coverpic-1-.jpg",
                 price: "OMR 5-10 / Person",
               ),
             ],
           ),
         ),
       ),
-
-      // -------- FOOTER -------- //
       bottomNavigationBar: const AppFooter(currentIndex: 3),
     );
   }
 }
-
 class _Chip extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool selected;
-
-  const _Chip({
-    required this.label,
-    required this.icon,
-    this.selected = false,
-  });
-
+  const _Chip({required this.label, required this.icon, this.selected = false});
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -187,9 +158,11 @@ class _Chip extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon,
-              size: 16,
-              color: selected ? Colors.white : const Color(0xFF0C1C3D)),
+          Icon(
+            icon,
+            size: 16,
+            color: selected ? Colors.white : const Color(0xFF0C1C3D),
+          ),
           const SizedBox(width: 6),
           Text(
             label,
@@ -202,69 +175,51 @@ class _Chip extends StatelessWidget {
     );
   }
 }
-
-
-
 class _FavoriteCard extends StatelessWidget {
   final String title, country, image, price;
-
   const _FavoriteCard({
     required this.title,
     required this.country,
     required this.image,
     required this.price,
   });
-
   static const cream = Color(0xFFF7F1E8);
-
   @override
   Widget build(BuildContext context) {
     const darkBlue = Color(0xFF0C1C3D);
-
     return Container(
       height: 220,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        image: DecorationImage(
-          image: NetworkImage(image),
-          fit: BoxFit.cover,
-        ),
+        image: DecorationImage(image: NetworkImage(image), fit: BoxFit.cover),
       ),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // overlay darkness
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(22),
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
             ),
           ),
-
-          // TOP ROW: country + heart
           Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                const Icon(Icons.location_on,
-                    color: Colors.white, size: 16),
+                const Icon(Icons.location_on, color: Colors.white, size: 16),
                 const SizedBox(width: 4),
                 Text(
                   country,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 13),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
                 ),
                 const Spacer(),
-                const Icon(Icons.favorite,
-                    color: Colors.white), // filled heart
+                const Icon(Icons.favorite, color: Colors.white), 
               ],
             ),
           ),
-
-          // BOTTOM WHITE INFO CARD
           Positioned(
             left: 14,
-            right: 34,
+            right: 80,
             bottom: 14,
             child: Container(
               padding: const EdgeInsets.all(14),
@@ -295,22 +250,20 @@ class _FavoriteCard extends StatelessWidget {
               ),
             ),
           ),
-
-          // ARROW BUTTON (same as HomePage)
           Positioned(
-            right: -23,
-            bottom: -7,
+            right: -4,
+            bottom: -5,
             child: Container(
-              width: 56,
-              height: 56,
+              width: 70,
+              height: 70,
               decoration: const BoxDecoration(
                 color: cream,
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 55,
+                  height: 55,
                   decoration: const BoxDecoration(
                     color: darkBlue,
                     shape: BoxShape.circle,
@@ -329,4 +282,3 @@ class _FavoriteCard extends StatelessWidget {
     );
   }
 }
-
