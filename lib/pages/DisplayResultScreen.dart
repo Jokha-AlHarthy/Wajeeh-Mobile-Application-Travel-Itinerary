@@ -1,0 +1,1076 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../providers/travel_provider.dart';
+import '../localization/app_localizations.dart';
+import '../services/itinerary_walkthrough.dart';
+
+class DisplayResultScreen extends StatefulWidget {
+  final Map<String, dynamic> place;
+
+  const DisplayResultScreen({
+    super.key,
+    required this.place,
+  });
+
+  @override
+  State<DisplayResultScreen> createState() => _DisplayResultScreenState();
+}
+
+class _DisplayResultScreenState extends State<DisplayResultScreen> {
+  final GlobalKey _planButtonKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    final w = ItineraryWalkthroughController.instance;
+    w.detailsPlanButtonKey = _planButtonKey;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (w.step == ItineraryWalkthroughStep.detailsPlan) {
+        // Ensure the Plan button is visible (overlay blocks manual scrolling).
+        final ctx = _planButtonKey.currentContext;
+        if (ctx != null) {
+          Scrollable.ensureVisible(
+            ctx,
+            alignment: 1.0,
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOut,
+          );
+        }
+        w.showIfNeeded(context);
+      }
+    });
+  }
+
+  static const Color _starYellow = Color(0xFFF4B400);
+  static const Color _shareOrange = Color(0xFFF5A623);
+
+  static ({double? lat, double? lng}) _extractLatLng(Map<String, dynamic> place) {
+    final loc = place['location'];
+    if (loc is Map) {
+      final lat = loc['latitude'];
+      final lng = loc['longitude'];
+      if (lat is num && lng is num) {
+        return (lat: lat.toDouble(), lng: lng.toDouble());
+      }
+    }
+
+    // Fallback shapes (some APIs use geometry/location).
+    final geometry = place['geometry'];
+    if (geometry is Map) {
+      final gLoc = geometry['location'];
+      if (gLoc is Map) {
+        final lat = gLoc['lat'] ?? gLoc['latitude'];
+        final lng = gLoc['lng'] ?? gLoc['longitude'];
+        if (lat is num && lng is num) {
+          return (lat: lat.toDouble(), lng: lng.toDouble());
+        }
+      }
+    }
+
+    return (lat: null, lng: null);
+  }
+
+  static Future<void> _openDirectionsInGoogleMaps(
+    BuildContext context, {
+    required String title,
+    required String address,
+    required Map<String, dynamic> place,
+  }) async {
+    final ll = _extractLatLng(place);
+    final hasLatLng = ll.lat != null && ll.lng != null;
+
+    // Leave origin empty: Google Maps uses the user's current location.
+    final destinationText = hasLatLng
+        ? '${ll.lat},${ll.lng}'
+        : (address.trim().isNotEmpty ? address.trim() : title.trim());
+
+    // Prefer opening the Google Maps app; then fall back to browser.
+    // - Android app deep link: google.navigation:q=...
+    // - iOS app deep link: comgooglemaps://?daddr=...
+    final appUri = hasLatLng
+        ? Uri.parse('google.navigation:q=$destinationText&mode=d')
+        : Uri.parse('google.navigation:q=${Uri.encodeComponent(destinationText)}&mode=d');
+
+    final iosAppUri = hasLatLng
+        ? Uri.parse('comgooglemaps://?daddr=$destinationText&directionsmode=driving')
+        : Uri.parse(
+            'comgooglemaps://?daddr=${Uri.encodeComponent(destinationText)}&directionsmode=driving',
+          );
+
+    final webUri = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=${Uri.encodeComponent(destinationText)}&travelmode=driving',
+    );
+
+    try {
+      final launched = (await canLaunchUrl(appUri) &&
+              await launchUrl(appUri, mode: LaunchMode.externalApplication)) ||
+          (await canLaunchUrl(iosAppUri) &&
+              await launchUrl(iosAppUri, mode: LaunchMode.externalApplication)) ||
+          (await launchUrl(webUri, mode: LaunchMode.externalApplication));
+
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('could_not_open_maps'))),
+        );
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(context.tr('could_not_open_maps'))),
+        );
+      }
+    }
+  }
+
+  static void _openGalleryViewer(
+    BuildContext context, {
+    required List<String> imageUrls,
+    required int initialIndex,
+  }) {
+    if (imageUrls.isEmpty) return;
+    final startIndex = initialIndex.clamp(0, imageUrls.length - 1);
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) {
+          final controller = PageController(initialPage: startIndex);
+          return Scaffold(
+            backgroundColor: Colors.black,
+            body: SafeArea(
+              child: Stack(
+                children: [
+                  PageView.builder(
+                    controller: controller,
+                    itemCount: imageUrls.length,
+                    itemBuilder: (context, index) {
+                      final url = imageUrls[index];
+                      return Center(
+                        child: InteractiveViewer(
+                          minScale: 1,
+                          maxScale: 4,
+                          child: Image.network(
+                            url,
+                            fit: BoxFit.contain,
+                            loadingBuilder: (context, child, progress) {
+                              if (progress == null) return child;
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, _, __) {
+                              return const Icon(
+                                Icons.broken_image_outlined,
+                                color: Colors.white70,
+                                size: 48,
+                              );
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  PositionedDirectional(
+                    top: 12,
+                    end: 12,
+                    child: IconButton(
+                      tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final travel = context.read<TravelProvider>();
+    final title = travel.placeName(widget.place);
+    final address = travel.placeAddress(widget.place);
+    final description = travel.placeDescription(widget.place);
+    final ratingText = travel.placeRatingText(widget.place);
+    final link = travel.placeLink(widget.place);
+    final photos = travel.photoUrls(widget.place);
+    final coverImage = travel.firstPhotoUrl(widget.place) ??
+        "https://via.placeholder.com/900x600?text=No+Image";
+    final showPriceRow = travel.placePriceShowInDetail(widget.place);
+    final priceDisplayText = travel.placePriceDisplayText(widget.place);
+    final showStartFrom = travel.placePriceShowStartFrom(widget.place);
+    final onSurface = theme.colorScheme.onSurface;
+    final scaffoldBg = theme.scaffoldBackgroundColor;
+    final cardBg = theme.cardTheme.color ?? theme.colorScheme.surface;
+    final mutedLabel = theme.brightness == Brightness.dark
+        ? Colors.white70
+        : const Color(0xFF7A7A7A);
+    final backBubbleColor = theme.brightness == Brightness.dark
+        ? Colors.black.withValues(alpha: 0.45)
+        : Colors.white.withValues(alpha: 0.9);
+
+    return Scaffold(
+      backgroundColor: scaffoldBg,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
+              Stack(
+                children: [
+                  SizedBox(
+                    height: 280,
+                    width: double.infinity,
+                    child: Image.network(
+                      coverImage,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  PositionedDirectional(
+                    top: 14,
+                    start: 14,
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: backBubbleColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(Icons.arrow_back),
+                        iconSize: 18,
+                        color: onSurface,
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                width: double.infinity,
+                color: scaffoldBg,
+                padding: const EdgeInsetsDirectional.fromSTEB(16, 16, 16, 16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: onSurface,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 18,
+                                color: onSurface,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  address,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: onSurface,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.star_border_rounded,
+                                size: 18,
+                                color: _starYellow,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  ratingText,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: onSurface,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (showPriceRow) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.payments_outlined,
+                                  size: 18,
+                                  color: onSurface,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    priceDisplayText,
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: onSurface,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.favorite_border_rounded,
+                            size: 24,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            tooltip: context.tr('open_in_google_maps'),
+                            icon: const Icon(Icons.map_outlined, size: 22),
+                            color: theme.colorScheme.primary,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
+                            onPressed: () => _openDirectionsInGoogleMaps(
+                              context,
+                              title: title,
+                              address: address,
+                              place: widget.place,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(24),
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.tr("details"),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        description,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          height: 1.5,
+                          color: onSurface,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        context.tr("galleries"),
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w800,
+                          color: onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 100,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          children: (photos.isEmpty ? [coverImage] : photos)
+                              .asMap()
+                              .entries
+                              .map(
+                                (e) => _galleryImageNetwork(
+                                  e.value,
+                                  theme,
+                                  onTap: () => _openGalleryViewer(
+                                    context,
+                                    imageUrls:
+                                        (photos.isEmpty ? [coverImage] : photos),
+                                    initialIndex: e.key,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                      const SizedBox(height: 100),
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isSmallScreen = constraints.maxWidth < 360;
+
+                          final shareBg = theme.brightness == Brightness.light
+                              ? _shareOrange
+                              : theme.colorScheme.primary;
+
+                          final priceWidget = showStartFrom
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      context.tr("approx_per_night"),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: mutedLabel,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      priceDisplayText.isNotEmpty
+                                          ? priceDisplayText
+                                          : context.tr("omr_dash"),
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w900,
+                                        color: theme.colorScheme.primary,
+                                      ),
+                                    ),
+                                  ],
+                                )
+                              : const SizedBox.shrink();
+
+                          final buttonsWidget = Row(
+                            children: [
+                              Expanded(
+                                child: SizedBox(
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    key: _planButtonKey,
+                                    onPressed: () async =>
+                                        handlePlanTap(context, widget.place),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          theme.colorScheme.primary,
+                                      foregroundColor:
+                                          theme.colorScheme.onPrimary,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(22),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      context.tr("plan"),
+                                      style: TextStyle(
+                                        fontSize: 15.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: theme.colorScheme.onPrimary,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: SizedBox(
+                                  height: 48,
+                                  child: ElevatedButton(
+                                    onPressed: () => _openShareSheet(
+                                      context,
+                                      title: title,
+                                      address: address,
+                                      ratingText: ratingText,
+                                      imageUrl: coverImage,
+                                      link: link,
+                                    ),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: shareBg,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(22),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      context.tr("share"),
+                                      style: const TextStyle(
+                                        fontSize: 15.5,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+
+                          if (isSmallScreen) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                priceWidget,
+                                if (showStartFrom) const SizedBox(height: 18),
+                                buttonsWidget,
+                              ],
+                            );
+                          }
+
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Expanded(child: priceWidget),
+                              const SizedBox(width: 16),
+                              Expanded(flex: 2, child: buttonsWidget),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static void _openShareSheet(
+    BuildContext context, {
+    required String title,
+    required String address,
+    required String ratingText,
+    required String imageUrl,
+    required String link,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      backgroundColor:
+          Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+      builder: (context) {
+        final sheetTheme = Theme.of(context);
+        final onSurface = sheetTheme.colorScheme.onSurface;
+        final fieldFill = sheetTheme.brightness == Brightness.dark
+            ? const Color(0xFF4A5D7A)
+            : const Color(0xFFF3F4F6);
+        final copyBtnBg =
+            sheetTheme.cardTheme.color ?? sheetTheme.colorScheme.surface;
+
+        return Padding(
+          padding: const EdgeInsetsDirectional.fromSTEB(20, 20, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                context.tr("share_this_destination"),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: onSurface,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Divider(
+                height: 1,
+                color: sheetTheme.dividerTheme.color ??
+                    onSurface.withValues(alpha: 0.12),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Image.network(
+                      imageUrl,
+                      width: 70,
+                      height: 70,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                            color: onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 16,
+                              color: onSurface,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                address,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.star_border_rounded,
+                              size: 16,
+                              color: _starYellow,
+                            ),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                ratingText,
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w500,
+                                  color: onSurface,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              TextFormField(
+                initialValue: link,
+                readOnly: true,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: fieldFill,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide.none,
+                  ),
+                  suffixIconConstraints:
+                      const BoxConstraints(minWidth: 0, minHeight: 0),
+                  suffixIcon: Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 8),
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        backgroundColor: copyBtnBg,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: link));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(context.tr("link_copied"))),
+                        );
+                      },
+                      child: Text(
+                        context.tr("copy"),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: sheetTheme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _shareIcon(context, "images/gmail.png", context.tr("gmail")),
+                  _shareIcon(
+                      context, "images/instagram.png", context.tr("instagram")),
+                  _shareIcon(
+                      context, "images/whatsapp.png", context.tr("whatsapp")),
+                  _shareIcon(
+                      context, "images/download.png", context.tr("download")),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Widget _galleryImageNetwork(
+    String url,
+    ThemeData theme, {
+    VoidCallback? onTap,
+  }) {
+    final borderColor = theme.dividerTheme.color ??
+        theme.colorScheme.onSurface.withValues(alpha: 0.15);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsetsDirectional.only(end: 10),
+        width: 76,
+        height: 76,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor, width: 1),
+          image: DecorationImage(image: NetworkImage(url), fit: BoxFit.cover),
+        ),
+      ),
+    );
+  }
+
+  static Widget _shareIcon(BuildContext context, String assetPath, String label) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Column(
+      children: [
+        Container(
+          width: 62,
+          height: 62,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Image.asset(
+            assetPath,
+            fit: BoxFit.cover,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Multi-day selection for the place; stays on current screen (no navigation).
+Future<void> handlePlanTap(
+  BuildContext screenContext,
+  Map<String, dynamic> place,
+) async {
+  final travel = screenContext.read<TravelProvider>();
+  final theme = Theme.of(screenContext);
+  final walkthrough = ItineraryWalkthroughController.instance;
+
+  if (!travel.tripPlanItineraryActive || travel.tripPlanDayCount == 0) {
+    final shouldStart = await walkthrough.shouldAutoStart(
+      hasTripHistory: travel.savedTrips.isNotEmpty,
+    );
+
+    if (!screenContext.mounted) return;
+
+    Navigator.pushNamedAndRemoveUntil(
+      screenContext,
+      '/trip_planing',
+      (route) => false,
+      arguments: <String, dynamic>{
+        if (shouldStart) 'startWalkthrough': true,
+        'source': 'plan_without_trip',
+      },
+    );
+
+    walkthrough.pendingSnackBarMessage =
+        screenContext.tr('create_trip_first_snackbar');
+    return;
+  }
+
+  walkthrough.onPlanSheetOpened();
+
+  final daySelectorKey = GlobalKey();
+  final saveBtnKey = GlobalKey();
+  walkthrough.planSheetDaySelectorKey = daySelectorKey;
+  walkthrough.planSheetSaveButtonKey = saveBtnKey;
+
+  showModalBottomSheet<void>(
+    context: screenContext,
+    isScrollControlled: true,
+    backgroundColor: theme.cardTheme.color ?? theme.colorScheme.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) {
+      final selected = <int>{};
+
+      return StatefulBuilder(
+        builder: (_, setModalState) {
+          final maxH = MediaQuery.sizeOf(ctx).height * 0.55;
+
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                12,
+                20,
+                24 + MediaQuery.paddingOf(ctx).bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    ctx.tr('choose_days_for_place'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    key: daySelectorKey,
+                    constraints: BoxConstraints(maxHeight: maxH),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: travel.tripPlanDayCount,
+                      itemBuilder: (_, i) {
+                        final day = i + 1;
+                        final isOn = selected.contains(day);
+                        return CheckboxListTile(
+                          value: isOn,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.platform,
+                          title: Text(
+                            '${ctx.tr('day')} $day',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          onChanged: (v) {
+                            setModalState(() {
+                              if (v == true) {
+                                selected.add(day);
+                              } else {
+                                selected.remove(day);
+                              }
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      key: saveBtnKey,
+                      onPressed: selected.isEmpty
+                          ? null
+                          : () async {
+                              final sorted = selected.toList()..sort();
+                              Navigator.pop(ctx);
+
+                              var allSuccess = true;
+
+                              for (final d in sorted) {
+                                if (!screenContext.mounted) return;
+
+                                final isHotelPlace = travel.isHotel(place);
+
+                                if (isHotelPlace) {
+                                  final success = travel.addPlaceToTripDay(
+                                    d,
+                                    place,
+                                    hotelStayOnDay: true,
+                                  );
+
+                                  if (!success) {
+                                    allSuccess = false;
+                                    final msg = travel.error != null
+                                        ? screenContext.tr(travel.error!)
+                                        : screenContext.tr('error_generic');
+                                    travel.error = null;
+                                    if (!screenContext.mounted) return;
+                                    ScaffoldMessenger.of(screenContext)
+                                        .showSnackBar(
+                                      SnackBar(content: Text(msg)),
+                                    );
+                                    break;
+                                  }
+                                } else {
+                                  final initial = TimeOfDay.fromDateTime(
+                                    DateTime(
+                                      2000,
+                                      1,
+                                      1,
+                                      9,
+                                      0,
+                                    ),
+                                  );
+
+                                  final picked = await showTimePicker(
+                                    context: screenContext,
+                                    initialTime: initial,
+                                  );
+
+                                  if (!screenContext.mounted) return;
+
+                                  if (picked == null) {
+                                    allSuccess = false;
+                                    break;
+                                  }
+
+                                  final mins =
+                                      picked.hour * 60 + picked.minute;
+
+                                  final success = travel.addPlaceToTripDay(
+                                    d,
+                                    place,
+                                    scheduledTimeMinutes: mins,
+                                  );
+
+                                  if (!success) {
+                                    allSuccess = false;
+                                    final msg = travel.error != null
+                                        ? screenContext.tr(travel.error!)
+                                        : screenContext.tr('error_generic');
+                                    travel.error = null;
+                                    if (!screenContext.mounted) return;
+                                    ScaffoldMessenger.of(screenContext)
+                                        .showSnackBar(
+                                      SnackBar(content: Text(msg)),
+                                    );
+                                    break;
+                                  }
+                                }
+                              }
+
+                              if (!screenContext.mounted) return;
+
+                              if (allSuccess) {
+                                await walkthrough.markCompleted();
+                                walkthrough.onPlanSheetSaved();
+                                travel.disablePlanningMode();
+
+                                final everyDayFilled =
+                                    travel.isTripPlanItineraryEveryDayFilled;
+
+                                walkthrough.pendingSnackBarMessage =
+                                    screenContext.tr('place_added_success_snackbar');
+
+                                if (!everyDayFilled) {
+                                  // Show requirement reminder as well.
+                                  walkthrough.pendingSnackBarMessage =
+                                      '${walkthrough.pendingSnackBarMessage}\n${screenContext.tr('place_added_each_day_required_snackbar')}';
+                                }
+
+                                if (!screenContext.mounted) return;
+
+                                Navigator.pushNamedAndRemoveUntil(
+                                  screenContext,
+                                  '/trip_planing',
+                                  (route) => false,
+                                  arguments: const <String, dynamic>{
+                                    'source': 'place_saved_return',
+                                  },
+                                );
+                              }
+                            },
+                      style: FilledButton.styleFrom(
+                        backgroundColor: theme.colorScheme.primary,
+                        foregroundColor: theme.colorScheme.onPrimary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        ctx.tr('save'),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+
+  // Show step 6 coach marks after the bottom sheet is built.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (!screenContext.mounted) return;
+    walkthrough.showIfNeeded(screenContext);
+  });
+}
