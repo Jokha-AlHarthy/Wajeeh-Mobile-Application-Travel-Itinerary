@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../localization/app_localizations.dart';
 import '../providers/travel_provider.dart';
 import '../utils/saved_trip_extensions.dart';
@@ -93,22 +94,48 @@ class _TripHistoryState extends State<TripHistory> {
                     color: onSurface,
                   ),
                   PositionedDirectional(
-                    end: -2,
+                    end: -1,
                     top: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.error,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection("notifications")
+                          .where(
+                        "userId",
+                        isEqualTo:
+                        firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+                      )
+                          .where("isRead", isEqualTo: false)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+
+                        if (!snapshot.hasData ||
+                            snapshot.data!.docs.isEmpty) {
+                          return const SizedBox();
+                        }
+
+                        final count = snapshot.data!.docs.length;
+
+                        return Container(
+                          padding: const EdgeInsets.all(3),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            count.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
