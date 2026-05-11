@@ -546,6 +546,14 @@
   "general_feedback": "ملاحظات عامة عن التطبيق",
   "trip_feedback": "ملاحظات عن الرحلة",
   "ai_chat_welcome_named": "مرحبًا {name}! أنا وجيه، مساعدك السياحي لدول مجلس التعاون. كيف أخطط لرحلتك اليوم؟",
-  "ai_chat_welcome_generic": "مرحبًا! كيف أخطط لرحلتك اليوم؟"
-
+  "ai_chat_welcome_generic": "مرحبًا! كيف أخطط لرحلتك اليوم؟",
+  "no_notifications": "لا توجد إشعارات حتى الآن",
+  "trip_plan_created": "تم إنشاء الرحلة",
+  "trip_plan_saved_successfully": "تم حفظ خطتك بنجاح.",
+  "trip_starting_tomorrow": "رحلتك تبدأ غداً",
+  "trip_will_start_24h": "ستبدأ رحلتك خلال 24 ساعة.",
+  "trip_ending_soon": "الرحلة ستنتهي قريباً",
+  "trip_will_end_2h": "ستنتهي رحلتك خلال ساعتين.",
+  "feedback_title": "كيف كانت رحلتك؟",
+  "feedback_message": "قيّم تجربتك مع وجيه."
 }
