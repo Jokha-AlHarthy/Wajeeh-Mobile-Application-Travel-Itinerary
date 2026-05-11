@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'user_feedback_screen.dart';
 import '../localization/app_localizations.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -9,26 +12,49 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
-  final List<Map<String, dynamic>> notifications = [
-    {
-      "titleKey": "notif_passport_expiry_title",
-      "timeKey": "notif_passport_expiry_time",
-      "bodyKey": "notif_passport_expiry_body",
-      "isRead": false,
-    },
-    {
-      "titleKey": "notif_weather_alert_title",
-      "timeKey": "notif_weather_alert_time",
-      "bodyKey": "notif_weather_alert_body",
-      "isRead": false,
-    },
-    {
-      "titleKey": "notif_flight_delayed_title",
-      "timeKey": "notif_flight_delayed_time",
-      "bodyKey": "notif_flight_delayed_body",
-      "isRead": false,
-    },
-  ];
+  final user = FirebaseAuth.instance.currentUser;
+
+  String _formatTime(dynamic timestamp) {
+    if (timestamp == null) return "";
+
+    try {
+      final date = (timestamp as Timestamp).toDate();
+
+      return "${date.day}/${date.month}/${date.year}  ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  Future<void> _markAllAsRead() async {
+    final snapshot = await FirebaseFirestore.instance
+        .collection("notifications")
+        .where("userId", isEqualTo: user?.uid)
+        .where("isRead", isEqualTo: false)
+        .get();
+
+    for (var doc in snapshot.docs) {
+      await doc.reference.update({
+        "isRead": true,
+      });
+    }
+  }
+
+  Future<void> _markAsRead(String id) async {
+    await FirebaseFirestore.instance
+        .collection("notifications")
+        .doc(id)
+        .update({
+      "isRead": true,
+    });
+  }
+
+  Future<void> _deleteNotification(String id) async {
+    await FirebaseFirestore.instance
+        .collection("notifications")
+        .doc(id)
+        .delete();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -53,113 +79,276 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.notifications_none,
-                    color: theme.colorScheme.onSurface,
-                    size: 26,
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Icon(
+                        Icons.notifications_none,
+                        color: theme.colorScheme.onSurface,
+                        size: 26,
+                      ),
+
+                      PositionedDirectional(
+                        end: -6,
+                        top: -6,
+                        child: StreamBuilder<QuerySnapshot>(
+                          stream: FirebaseFirestore.instance
+                              .collection("notifications")
+                              .where("userId", isEqualTo: user?.uid)
+                              .where("isRead", isEqualTo: false)
+                              .snapshots(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                              return const SizedBox();
+                            }
+
+                            final count = snapshot.data!.docs.length;
+
+                            return Container(
+                              width: 18,
+                              height: 18,
+                              alignment: Alignment.center,
+                              decoration: const BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                count.toString(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
+
             const SizedBox(height: 8),
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Align(
-                alignment:
-                isArabic ? Alignment.centerRight : Alignment.centerLeft,
-                child: Text(
-                  context.tr('notifications_center'),
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.onSurface,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    context.tr('notifications_center'),
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: theme.colorScheme.onSurface,
+                    ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                itemCount: notifications.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 16),
-                itemBuilder: (context, index) {
-                  final n = notifications[index];
-
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.scaffoldBackgroundColor,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
+                  TextButton(
+                    onPressed: _markAllAsRead,
+                    child: Text(
+                      context.tr("read_all"),
+                      style: TextStyle(
                         color: theme.colorScheme.primary,
-                        width: 1,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          context.tr(n["titleKey"] as String),
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          context.tr(n["timeKey"] as String),
-                          style: TextStyle(
-                            color: theme.textTheme.bodySmall?.color ??
-                                theme.colorScheme.onSurface.withOpacity(0.7),
-                            fontSize: 13,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          context.tr(n["bodyKey"] as String),
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 1.4,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
+                  ),
+                ],
+              ),
+            ),
 
-                        // Responsive buttons
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isSmall = constraints.maxWidth < 320;
+            const SizedBox(height: 16),
 
-                            if (isSmall) {
-                              return Column(
-                                children: [
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: _buildReadButton(theme, n),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: _buildDeleteButton(theme, index),
-                                  ),
-                                ],
-                              );
-                            }
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection("notifications")
+                    .where("userId", isEqualTo: user?.uid)
+                    .orderBy("createdAt", descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
 
-                            return Row(
-                              children: [
-                                Expanded(child: _buildReadButton(theme, n)),
-                                const SizedBox(width: 12),
-                                Expanded(child: _buildDeleteButton(theme, index)),
-                              ],
-                            );
-                          },
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Text(
+                        snapshot.error.toString(),
+                        textAlign: TextAlign.center,
+                      ),
+                    );
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(
+                      child: Text(
+                        context.tr("no_notifications"),
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 16,
                         ),
-                      ],
+                      ),
+                    );
+                  }
+
+                  final docs = snapshot.data!.docs;
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
                     ),
+                    itemCount: docs.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      final doc = docs[index];
+                      final data = doc.data() as Map<String, dynamic>;
+
+                      final title = data["title"] ?? "";
+                      final message = data["message"] ?? "";
+                      final isRead = data["isRead"] ?? false;
+                      final createdAt = data["createdAt"];
+                      final type = data["type"] ?? "";
+
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isRead
+                              ? theme.scaffoldBackgroundColor
+                              : const Color(0xFFFFF3E0),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: theme.colorScheme.primary,
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+
+                            const SizedBox(height: 6),
+
+                            Text(
+                              _formatTime(createdAt),
+                              style: TextStyle(
+                                color: theme.textTheme.bodySmall?.color ??
+                                    theme.colorScheme.onSurface
+                                        .withValues(alpha: 0.7),
+                                fontSize: 13,
+                              ),
+                            ),
+
+                            const SizedBox(height: 12),
+
+                            Text(
+                              message,
+                              style: TextStyle(
+                                fontSize: 14,
+                                height: 1.4,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            if (type == "feedback") ...[
+                              SizedBox(
+                                width: double.infinity,
+                                height: 46,
+                                child: ElevatedButton(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const UserFeedbackScreen(),
+                                      ),
+                                    );
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.amber,
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    context.tr("give_feedback"),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(height: 14),
+                            ],
+
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                final isSmall = constraints.maxWidth < 320;
+
+                                if (isSmall) {
+                                  return Column(
+                                    children: [
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: _buildReadButton(
+                                          theme,
+                                          doc.id,
+                                          isRead,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        width: double.infinity,
+                                        child: _buildDeleteButton(
+                                          theme,
+                                          doc.id,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }
+
+                                return Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildReadButton(
+                                        theme,
+                                        doc.id,
+                                        isRead,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: _buildDeleteButton(
+                                        theme,
+                                        doc.id,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   );
                 },
               ),
@@ -170,18 +359,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildReadButton(ThemeData theme, Map<String, dynamic> n) {
+  Widget _buildReadButton(ThemeData theme, String id, bool isRead) {
     return SizedBox(
       height: 46,
       child: ElevatedButton(
-        onPressed: () {
-          setState(() {
-            n["isRead"] = true;
-          });
-        },
+        onPressed: isRead ? null : () => _markAsRead(id),
         style: ElevatedButton.styleFrom(
           backgroundColor: theme.colorScheme.primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey,
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
@@ -191,9 +377,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            n["isRead"] == true
-                ? context.tr("read")
-                : context.tr("mark_as_read"),
+            isRead ? context.tr("read") : context.tr("mark_as_read"),
             maxLines: 1,
           ),
         ),
@@ -201,15 +385,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     );
   }
 
-  Widget _buildDeleteButton(ThemeData theme, int index) {
+  Widget _buildDeleteButton(ThemeData theme, String id) {
     return SizedBox(
       height: 46,
       child: ElevatedButton(
-        onPressed: () {
-          setState(() {
-            notifications.removeAt(index);
-          });
-        },
+        onPressed: () => _deleteNotification(id),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xffE04F4F),
           foregroundColor: Colors.white,
