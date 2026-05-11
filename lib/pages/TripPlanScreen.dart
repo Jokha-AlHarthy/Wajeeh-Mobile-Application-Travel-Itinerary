@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
-
+import '../services/notification_service.dart';
 import '../localization/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/travel_provider.dart';
 import '../services/itinerary_walkthrough.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class TripPlanScreen extends StatefulWidget {
   const TripPlanScreen({super.key});
@@ -553,22 +555,48 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
                     color: accentColor,
                   ),
                   PositionedDirectional(
-                    end: -2,
+                    end: -1,
                     top: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.error,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection("notifications")
+                          .where(
+                        "userId",
+                        isEqualTo:
+                        firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+                      )
+                          .where("isRead", isEqualTo: false)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+
+                        if (!snapshot.hasData ||
+                            snapshot.data!.docs.isEmpty) {
+                          return const SizedBox();
+                        }
+
+                        final count = snapshot.data!.docs.length;
+
+                        return Container(
+                          padding: const EdgeInsets.all(3),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            count.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -879,8 +907,6 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
 
               final ok = await travel.saveCurrentItinerary();
 
-              if (!context.mounted) return;
-
               if (!ok) {
                 final msg = travel.error != null
                     ? context.tr(travel.error!)
@@ -894,6 +920,70 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
                 );
                 return;
               }
+
+              await NotificationService.addNotification(
+                title: context.tr("trip_plan_created"),
+                message: context.tr("trip_plan_saved_successfully"),
+                type: "trip_plan",
+              );
+
+              final now = DateTime.now();
+              final startReminder = _startDate!.subtract(const Duration(days: 1));
+
+              if (_startDate!.difference(now).inHours >= 24) {
+                await NotificationService.addNotification(
+                  title: context.tr("trip_starting_tomorrow"),
+                  message: context.tr("trip_will_start_24h"),
+                  type: "trip_start",
+                  scheduledAt: startReminder,
+                );
+              } else {
+                await NotificationService.addNotification(
+                  title: context.tr("trip_starting_soon"),
+                  message: context.tr("trip_will_start_soon"),
+                  type: "trip_start",
+                  scheduledAt: now.add(const Duration(minutes: 5)),
+                );
+              }
+
+              if (_endDate != null &&
+                  _startDate != null &&
+                  _endDate!.difference(_startDate!).inDays >= 1) {
+
+                final lastDayReminder = DateTime(
+                  _endDate!.year,
+                  _endDate!.month,
+                  _endDate!.day,
+                  9,
+                  0,
+                );
+
+                if (lastDayReminder.isAfter(DateTime.now())) {
+                  await NotificationService.addNotification(
+                    title: context.tr("last_day_trip_title"),
+                    message: context.tr("last_day_trip_message"),
+                    type: "trip_last_day",
+                    scheduledAt: lastDayReminder,
+                  );
+                }
+              }
+
+              final feedbackReminder = DateTime(
+                _endDate!.year,
+                _endDate!.month,
+                _endDate!.day,
+                9,
+                0,
+              ).add(const Duration(days: 1));
+
+              await NotificationService.addNotification(
+                title: context.tr("feedback_title"),
+                message: context.tr("feedback_message"),
+                type: "feedback",
+                scheduledAt: feedbackReminder,
+              );
+
+              if (!context.mounted) return;
 
               await ItineraryWalkthroughController.instance.markCompleted();
               ItineraryWalkthroughController.instance.stop();
