@@ -25,6 +25,12 @@ class FakeGoogleMapsFlutterPlatform extends GoogleMapsFlutterPlatform {
   /// Tracks view creation IDs to avoid completing the same future twice.
   final Set<int> _createdViewIds = <int>{};
 
+  /// Clears per-map state between widget tests (creation IDs must not leak).
+  void resetTestState() {
+    _createdViewIds.clear();
+    disposed = false;
+  }
+
   /// Stream controller to inject events for testing.
   final StreamController<MapEvent<dynamic>> mapEventStreamController =
       StreamController<MapEvent<dynamic>>.broadcast();
