@@ -493,6 +493,18 @@
   "general_feedback": "General App Feedback",
   "trip_feedback": "Trip Experience Feedback",
   "ai_chat_welcome_named": "Hello {name}! I'm Wajeeh, your travel assistant for the GCC. How can I help you plan your trip today?",
-  "ai_chat_welcome_generic": "Hello! How can I help you plan your trip today?"
-
+  "ai_chat_welcome_generic": "Hello! How can I help you plan your trip today?",
+  "no_notifications": "No notifications yet",
+  "trip_plan_created": "Trip Plan Created",
+  "trip_plan_saved_successfully": "Your itinerary has been saved successfully.",
+  "trip_starting_tomorrow": "Trip Starting Tomorrow",
+  "trip_will_start_24h": "Your trip will start in 24 hours.",
+  "trip_ending_soon": "Trip Ending Soon",
+  "trip_will_end_2h": "Your trip will end in 2 hours.",
+  "trip_starting_soon": "Trip Starting Soon",
+  "trip_will_start_soon": "Your trip will start soon.",
+  "last_day_trip_title": "Last Day of Your Trip",
+  "last_day_trip_message": "Today is the last day of your trip.",
+  "feedback_title": "How was your trip?",
+  "feedback_message": "Rate your travel experience with Wajeeh."
 }
