@@ -7,8 +7,9 @@ import '../providers/auth_provider.dart';
 import '../providers/theme_provider.dart';
 import 'notifications_screen.dart';
 import '../localization/app_localizations.dart';
-
-enum _PhotoTarget { profile, cover }
+import '../services/notification_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;enum _PhotoTarget { profile, cover }
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -394,20 +395,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   PositionedDirectional(
                     end: -1,
                     top: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Text(
-                        "3",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection("notifications")
+                          .where("userId", isEqualTo: firebase_auth.FirebaseAuth.instance.currentUser?.uid)                          .where("isRead", isEqualTo: false)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+
+                        if (!snapshot.hasData ||
+                            snapshot.data!.docs.isEmpty) {
+                          return const SizedBox();
+                        }
+
+                        final count = snapshot.data!.docs.length;
+
+                        return Container(
+                          padding: const EdgeInsets.all(3),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            count.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -588,14 +610,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     if (!mounted) return;
 
                     if (ok) {
+
+                      await NotificationService.addNotification(
+                        title: "Profile Updated",
+                        message: "Your profile information has been updated successfully.",
+                        type: "profile_update",
+                      );
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content:
-                          Text(context.tr('profile_updated_success')),
+                          content: Text(context.tr('profile_updated_success')),
                         ),
                       );
+
                       Navigator.pushNamed(context, '/setting');
+
                     } else {
+
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
@@ -605,6 +636,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                       );
+
                     }
                   },
                   child: auth.isLoading
