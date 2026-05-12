@@ -506,5 +506,15 @@
   "last_day_trip_title": "Last Day of Your Trip",
   "last_day_trip_message": "Today is the last day of your trip.",
   "feedback_title": "How was your trip?",
-  "feedback_message": "Rate your travel experience with Wajeeh."
+  "feedback_message": "Rate your travel experience with Wajeeh.",
+  "pdf_column_day_section": "Day / section",
+  "pdf_column_category": "Category",
+  "pdf_column_activity": "Activity",
+  "pdf_column_when": "Date & time",
+  "pdf_column_price": "Price",
+  "pdf_saved": "PDF saved",
+  "pdf_save_failed": "Could not save PDF",
+  "pdf_save_cancelled": "Save cancelled",
+  "pdf_share_pick_destination": "Choose where to save: pick Files, Drive, or Downloads from the share menu",
+  "gmail_open_failed": "Could not open Gmail. Install Gmail or check that it is enabled."
 }
