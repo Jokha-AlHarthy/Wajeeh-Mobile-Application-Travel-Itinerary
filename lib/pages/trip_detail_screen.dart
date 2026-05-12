@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
@@ -7,6 +6,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../localization/app_localizations.dart';
 import '../providers/travel_provider.dart';
 import '../utils/ai_trip_plan_markdown_parser.dart';
+import '../utils/pdf_download.dart';
+import '../utils/trip_detail_shared_text.dart';
+import '../utils/trip_pdf_export.dart';
 import 'notifications_screen.dart';
 import 'rate_screen.dart';
 
@@ -34,81 +36,6 @@ class TripDetailScreen extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final endOnly = DateTime(end.year, end.month, end.day);
     return endOnly.isBefore(today);
-  }
-
-  static DateTime? _tripStartDate(Map<String, dynamic> trip) {
-    final s = trip['startDate']?.toString();
-
-    if (s == null || s.isEmpty) return null;
-
-    return DateTime.tryParse(s);
-  }
-
-  static String _dayTitle(
-    BuildContext context,
-    int dayNumber,
-    String dateStrFromMap,
-    Map<String, dynamic> trip,
-  ) {
-    final start = _tripStartDate(trip);
-
-    if (start != null) {
-      final d = DateTime(start.year, start.month, start.day)
-          .add(Duration(days: dayNumber - 1));
-      final lang = Localizations.localeOf(context).languageCode;
-
-      if (lang == 'ar') {
-        return '${context.tr('day')} $dayNumber: ${DateFormat('EEEE، d MMMM y', 'ar').format(d)}';
-      }
-
-      return '${context.tr('day')} $dayNumber: ${DateFormat('EEEE, MMMM d, y', 'en').format(d)}';
-    }
-
-    return '${context.tr('day')} $dayNumber${dateStrFromMap.isNotEmpty ? ': $dateStrFromMap' : ''}';
-  }
-
-  static String _activityScheduleLabel(
-    BuildContext context,
-    TravelProvider travel,
-    Map<String, dynamic> place,
-    int dayNumber,
-  ) {
-    if (travel.placeIsHotelStayInTrip(place)) {
-      return context.tr('hotel_checkin_day_line', {
-        'day': dayNumber.toString(),
-      });
-    }
-
-    final mins = travel.scheduledTimeMinutesFromTripPlace(place);
-
-    if (mins == null) {
-      return context.tr('schedule_time_pending');
-    }
-
-    final dt = DateTime(2000, 1, 1, mins ~/ 60, mins % 60);
-    final lang = Localizations.localeOf(context).languageCode;
-
-    if (lang == 'ar') {
-      return DateFormat.jm('ar').format(dt);
-    }
-
-    return DateFormat.jm('en').format(dt);
-  }
-
-  static int _minutesForSort(TravelProvider travel, Map<String, dynamic> place) {
-    if (travel.placeIsHotelStayInTrip(place)) return -1;
-
-    return travel.scheduledTimeMinutesFromTripPlace(place) ?? 720;
-  }
-
-  /// All places carry [itineraryCategoryKey] (AI-structured save); use ordered layout.
-  static bool _placesUseStructuredLayout(List<Map<String, dynamic>> places) {
-    if (places.isEmpty) return false;
-    for (final p in places) {
-      final k = p['itineraryCategoryKey']?.toString().trim();
-      if (k == null || k.isEmpty) return false;
-    }
-    return true;
   }
 
   Widget _tripLeadImage(BuildContext context, String src) {
@@ -221,32 +148,21 @@ class TripDetailScreen extends StatelessWidget {
     final rawName = travel.placeName(place);
     final stripped =
         AiTripPlanMarkdownParser.stripItineraryMarkdownForDisplay(rawName);
-    final priceField = place['itineraryPriceLabel']?.toString().trim();
-    final split = AiTripPlanMarkdownParser.splitNameAndPrice(stripped);
-    final title = (priceField != null && priceField.isNotEmpty)
-        ? stripped
-        : split.$1;
-    final price = (priceField != null && priceField.isNotEmpty)
-        ? priceField
-        : split.$2;
-    final category = place['itineraryCategory']?.toString().trim();
-    final schedule =
-        _activityScheduleLabel(context, travel, place, dayNumber);
-
-    final subParts = <String>[];
-    if (dateStr.isNotEmpty) subParts.add(dateStr);
-    final pending = context.tr('schedule_time_pending');
-    if (schedule.isNotEmpty && schedule != pending) {
-      subParts.add(schedule);
-    }
-    final subtitle = subParts.join(' · ');
+    final row = tripItineraryRowText(
+      context,
+      travel,
+      place,
+      dateStr,
+      dayNumber,
+    );
+    final category = row.category.isNotEmpty ? row.category : null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (category != null && category.isNotEmpty)
+          if (category != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
@@ -263,7 +179,7 @@ class TripDetailScreen extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  title.isEmpty ? stripped : title,
+                  row.activityTitle.isEmpty ? stripped : row.activityTitle,
                   style: theme.textTheme.bodyLarge?.copyWith(
                     fontSize: 15,
                     height: 1.35,
@@ -272,10 +188,10 @@ class TripDetailScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              if (price.isNotEmpty) ...[
+              if (row.price.isNotEmpty) ...[
                 const SizedBox(width: 8),
                 Text(
-                  price,
+                  row.price,
                   textAlign: TextAlign.right,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontSize: 14,
@@ -286,11 +202,11 @@ class TripDetailScreen extends StatelessWidget {
               ],
             ],
           ),
-          if (subtitle.isNotEmpty)
+          if (row.subtitle.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                subtitle,
+                row.subtitle,
                 style: theme.textTheme.bodySmall?.copyWith(
                   fontSize: 11.5,
                   height: 1.3,
@@ -465,7 +381,7 @@ class TripDetailScreen extends StatelessWidget {
 
       blocks.add(
         Text(
-          _dayTitle(context, dayNumber, dateStr, trip),
+          tripDetailDayTitle(context, dayNumber, dateStr, trip),
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w700,
             fontSize: 15,
@@ -475,7 +391,7 @@ class TripDetailScreen extends StatelessWidget {
       );
       blocks.add(const SizedBox(height: 8));
 
-      if (_placesUseStructuredLayout(places)) {
+      if (tripDetailPlacesUseStructuredLayout(places)) {
         final ordered = List<Map<String, dynamic>>.from(places);
         ordered.sort(
           (a, b) => AiTripPlanMarkdownParser.slotOrderForCategoryKey(
@@ -547,7 +463,8 @@ class TripDetailScreen extends StatelessWidget {
       }
 
       timed.sort(
-        (a, b) => _minutesForSort(travel, a).compareTo(_minutesForSort(travel, b)),
+        (a, b) => tripDetailMinutesForSort(travel, a)
+            .compareTo(tripDetailMinutesForSort(travel, b)),
       );
 
       if (hotels.isNotEmpty) {
@@ -834,6 +751,7 @@ class TripDetailScreen extends StatelessWidget {
                             context,
                             context.tr('download_pdf'),
                             theme.colorScheme.primary,
+                            onPressed: () => _downloadTripPdf(context, trip),
                           ),
                           const SizedBox(width: 8),
                           _roundedButton(
@@ -882,5 +800,74 @@ class TripDetailScreen extends StatelessWidget {
       ),
       bottomNavigationBar: const AppFooter(currentIndex: 1),
     );
+  }
+}
+
+Future<void> _downloadTripPdf(
+  BuildContext context,
+  Map<String, dynamic> trip,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final travel = context.read<TravelProvider>();
+
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      content: Row(
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(ctx.tr('download_pdf'))),
+        ],
+      ),
+    ),
+  );
+
+  try {
+    final bytes = await buildTripDetailPdfBytes(
+      context: context,
+      travel: travel,
+      trip: trip,
+    );
+    final loc = travel.historyLocationLinesForTrip(trip);
+    final tripName = trip['tripName']?.toString().trim() ?? '';
+    final base =
+        tripName.isNotEmpty ? tripName : (loc['cities'] ?? 'trip_itinerary');
+
+    final outcome = await savePdfToDevice(base, bytes);
+
+    if (!context.mounted) return;
+    switch (outcome) {
+      case PdfSaveOutcome.savedToChosenPath:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_saved'))),
+        );
+        break;
+      case PdfSaveOutcome.cancelledByUser:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_save_cancelled'))),
+        );
+        break;
+      case PdfSaveOutcome.presentedShareSheet:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_share_pick_destination'))),
+        );
+        break;
+    }
+  } catch (_) {
+    if (context.mounted) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(context.tr('pdf_save_failed'))),
+      );
+    }
+  } finally {
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
   }
 }
