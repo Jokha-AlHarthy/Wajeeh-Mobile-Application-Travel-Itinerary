@@ -555,5 +555,15 @@
   "trip_ending_soon": "الرحلة ستنتهي قريباً",
   "trip_will_end_2h": "ستنتهي رحلتك خلال ساعتين.",
   "feedback_title": "كيف كانت رحلتك؟",
-  "feedback_message": "قيّم تجربتك مع وجيه."
+  "feedback_message": "قيّم تجربتك مع وجيه.",
+  "pdf_column_day_section": "اليوم / القسم",
+  "pdf_column_category": "الفئة",
+  "pdf_column_activity": "النشاط",
+  "pdf_column_when": "التاريخ والوقت",
+  "pdf_column_price": "السعر",
+  "pdf_saved": "تم حفظ ملف PDF",
+  "pdf_save_failed": "تعذّر حفظ ملف PDF",
+  "pdf_save_cancelled": "تم إلغاء الحفظ",
+  "pdf_share_pick_destination": "اختر مكان الحفظ: من قائمة المشاركة اختر الملفات أو Drive أو التنزيلات",
+  "gmail_open_failed": "تعذّر فتح Gmail. ثبّت تطبيق Gmail أو تأكّد أنه مفعّل."
 }
