@@ -8,7 +8,10 @@ import '../models/place_review_preview.dart';
 import '../providers/travel_provider.dart';
 import '../services/itinerary_walkthrough.dart';
 import '../services/user_location_helper.dart';
+import '../utils/gmail_compose.dart';
 import '../utils/haversine_km.dart';
+import '../utils/pdf_download.dart';
+import '../utils/trip_pdf_export.dart';
 
 class DisplayResultScreen extends StatefulWidget {
   final Map<String, dynamic> place;
@@ -795,6 +798,7 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
                                       context,
                                       title: title,
                                       address: address,
+                                      description: description,
                                       ratingText: ratingText,
                                       imageUrl: coverImage,
                                       link: link,
@@ -923,23 +927,25 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
   }
 
   static void _openShareSheet(
-    BuildContext context, {
+    BuildContext parentContext, {
     required String title,
     required String address,
+    required String description,
     required String ratingText,
     required String imageUrl,
     required String link,
   }) {
     showModalBottomSheet(
-      context: context,
+      context: parentContext,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       backgroundColor:
-          Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
-      builder: (context) {
-        final sheetTheme = Theme.of(context);
+          Theme.of(parentContext).cardTheme.color ??
+              Theme.of(parentContext).colorScheme.surface,
+      builder: (sheetContext) {
+        final sheetTheme = Theme.of(sheetContext);
         final onSurface = sheetTheme.colorScheme.onSurface;
         final fieldFill = sheetTheme.brightness == Brightness.dark
             ? const Color(0xFF4A5D7A)
@@ -954,7 +960,7 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                context.tr("share_this_destination"),
+                sheetContext.tr("share_this_destination"),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
@@ -1073,12 +1079,12 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
                       ),
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: link));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(context.tr("link_copied"))),
+                        ScaffoldMessenger.of(sheetContext).showSnackBar(
+                          SnackBar(content: Text(sheetContext.tr("link_copied"))),
                         );
                       },
                       child: Text(
-                        context.tr("copy"),
+                        sheetContext.tr("copy"),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -1093,13 +1099,43 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _shareIcon(context, "images/gmail.png", context.tr("gmail")),
                   _shareIcon(
-                      context, "images/instagram.png", context.tr("instagram")),
+                    sheetContext,
+                    'images/gmail.png',
+                    sheetContext.tr('gmail'),
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      await _runPlaceGmailShare(
+                        parentContext,
+                        title: title,
+                        description: description,
+                        link: link,
+                      );
+                    },
+                  ),
                   _shareIcon(
-                      context, "images/whatsapp.png", context.tr("whatsapp")),
+                    sheetContext,
+                    'images/instagram.png',
+                    sheetContext.tr('instagram'),
+                  ),
                   _shareIcon(
-                      context, "images/download.png", context.tr("download")),
+                    sheetContext,
+                    'images/whatsapp.png',
+                    sheetContext.tr('whatsapp'),
+                  ),
+                  _shareIcon(
+                    sheetContext,
+                    'images/download.png',
+                    sheetContext.tr('download'),
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      await _runPlacePdfDownload(
+                        parentContext,
+                        title: title,
+                        description: description,
+                      );
+                    },
+                  ),
                 ],
               ),
             ],
@@ -1131,9 +1167,15 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
     );
   }
 
-  static Widget _shareIcon(BuildContext context, String assetPath, String label) {
+  static Widget _shareIcon(
+    BuildContext context,
+    String assetPath,
+    String label, {
+    VoidCallback? onTap,
+  }) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    return Column(
+    final column = Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 62,
@@ -1157,6 +1199,78 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
           ),
         ),
       ],
+    );
+    if (onTap == null) {
+      return column;
+    }
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(4),
+          child: column,
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _runPlaceGmailShare(
+  BuildContext context, {
+  required String title,
+  required String description,
+  required String link,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  var body = '$title\n\n${description.trim()}\n\n$link';
+  if (body.length > 12000) {
+    body = '${body.substring(0, 12000)}\n…';
+  }
+  final ok = await openGmailCompose(subject: title, body: body);
+  if (!context.mounted) return;
+  if (!ok) {
+    messenger.showSnackBar(
+      SnackBar(content: Text(context.tr('gmail_open_failed'))),
+    );
+  }
+}
+
+Future<void> _runPlacePdfDownload(
+  BuildContext context, {
+  required String title,
+  required String description,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final bytes = await buildPlaceSharePdfBytes(
+      title: title,
+      description: description,
+    );
+    final outcome = await savePdfToDevice(title, bytes);
+    if (!context.mounted) return;
+    switch (outcome) {
+      case PdfSaveOutcome.savedToChosenPath:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_saved'))),
+        );
+        break;
+      case PdfSaveOutcome.cancelledByUser:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_save_cancelled'))),
+        );
+        break;
+      case PdfSaveOutcome.presentedShareSheet:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_share_pick_destination'))),
+        );
+        break;
+    }
+  } catch (_) {
+    if (!context.mounted) return;
+    messenger.showSnackBar(
+      SnackBar(content: Text(context.tr('pdf_save_failed'))),
     );
   }
 }
