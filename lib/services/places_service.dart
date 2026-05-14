@@ -30,7 +30,7 @@ class PlacesService {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask":
-        "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.photos,places.location,places.types,places.priceLevel,places.googleMapsUri,places.editorialSummary",
+        "places.id,places.displayName,places.formattedAddress,places.addressComponents,places.rating,places.userRatingCount,places.photos,places.location,places.types,places.priceLevel,places.googleMapsUri,places.editorialSummary",
       },
       body: jsonEncode(body),
     );
@@ -51,7 +51,7 @@ class PlacesService {
       headers: {
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask":
-        "id,displayName,formattedAddress,rating,userRatingCount,location,photos,editorialSummary,websiteUri,types,priceLevel,googleMapsUri,reviews",
+        "id,displayName,formattedAddress,addressComponents,rating,userRatingCount,location,photos,editorialSummary,websiteUri,types,priceLevel,googleMapsUri,reviews",
       },
     );
 
