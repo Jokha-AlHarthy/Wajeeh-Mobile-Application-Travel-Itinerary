@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notifications_screen.dart';
@@ -12,6 +13,7 @@ class UserFeedbackScreen extends StatefulWidget {
 }
 
 class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
+  Timer? _notificationTimer;
   int rating = 3;
   bool hasTrip = false;
   final List<String> categories = [
@@ -27,6 +29,7 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
 
   @override
   void dispose() {
+    _notificationTimer?.cancel();
     commentController.dispose();
     super.dispose();
   }
@@ -60,6 +63,13 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
   @override
   void initState() {
     super.initState();
+
+    _notificationTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
     checkUserTrips();
   }
 
@@ -153,20 +163,60 @@ class _UserFeedbackScreenState extends State<UserFeedbackScreen> {
                   PositionedDirectional(
                     end: -1,
                     top: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Text(
-                        "3",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection("notifications")
+                          .where(
+                        "userId",
+                        isEqualTo: FirebaseAuth.instance.currentUser?.uid,
+                      )
+                          .where("isRead", isEqualTo: false)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+                        if (!snapshot.hasData) {
+                          return const SizedBox();
+                        }
+
+                        final now = DateTime.now();
+
+                        final count = snapshot.data!.docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final scheduledAt = data["scheduledAt"];
+
+                          if (scheduledAt == null) return true;
+
+                          if (scheduledAt is Timestamp) {
+                            return !scheduledAt.toDate().isAfter(now);
+                          }
+
+                          return true;
+                        }).length;
+
+                        if (count == 0) {
+                          return const SizedBox();
+                        }
+
+                        return Container(
+                          padding: const EdgeInsets.all(3),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            count.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
