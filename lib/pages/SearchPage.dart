@@ -27,6 +27,7 @@ const List<String> _placeCategoryFilterKeys = [
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _controller = TextEditingController();
   Timer? _filterDebounce;
+  Timer? _notificationTimer;
 
   List<String> selectedFilters = [];
 
@@ -38,8 +39,20 @@ class _SearchPageState extends State<SearchPage> {
   List<Map<String, dynamic>> _placesMemoList = const [];
 
   @override
+  void initState() {
+    super.initState();
+
+    _notificationTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _filterDebounce?.cancel();
+    _notificationTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -138,13 +151,28 @@ class _SearchPageState extends State<SearchPage> {
                           .snapshots(),
                       builder: (context, snapshot) {
 
-                        if (!snapshot.hasData ||
-                            snapshot.data!.docs.isEmpty) {
+                        if (!snapshot.hasData) {
                           return const SizedBox();
                         }
 
-                        final count = snapshot.data!.docs.length;
+                        final now = DateTime.now();
 
+                        final count = snapshot.data!.docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final scheduledAt = data["scheduledAt"];
+
+                          if (scheduledAt == null) return true;
+
+                          if (scheduledAt is Timestamp) {
+                            return !scheduledAt.toDate().isAfter(now);
+                          }
+
+                          return true;
+                        }).length;
+
+                        if (count == 0) {
+                          return const SizedBox();
+                        }
                         return Container(
                           padding: const EdgeInsets.all(3),
                           constraints: const BoxConstraints(
