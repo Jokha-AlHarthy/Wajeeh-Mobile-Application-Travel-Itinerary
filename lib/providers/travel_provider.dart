@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,6 +12,303 @@ import '../config/google_keys.dart';
 import '../services/places_service.dart';
 import '../services/price_extraction_service.dart';
 import '../utils/ai_trip_plan_markdown_parser.dart';
+
+/// Converts Firestore-typed values ([Timestamp], [GeoPoint], …) and strips binary
+/// ([Uint8List], [Blob], [TypedData]) so [jsonEncode] stays small and Firestore writes succeed.
+///
+/// **Important:** [Uint8List] implements [Iterable<int>]. If handled as a generic [Iterable],
+/// each byte becomes a JSON number and the payload can exceed Firestore limits—often seen on
+/// active itineraries (map tiles, thumbnails) while older completed trips are URL-only.
+dynamic _tripDataJsonSafeValue(dynamic value) {
+  if (value == null) return null;
+  if (value is bool || value is String) return value;
+  if (value is num) {
+    if (value.isNaN || value.isInfinite) return null;
+    return value;
+  }
+  if (value is Timestamp) {
+    return value.toDate().toUtc().toIso8601String();
+  }
+  if (value is DateTime) {
+    return value.toUtc().toIso8601String();
+  }
+  if (value is GeoPoint) {
+    return <String, double>{
+      'latitude': value.latitude,
+      'longitude': value.longitude,
+    };
+  }
+  if (value is DocumentReference) {
+    return value.path;
+  }
+  if (value is Blob) {
+    return null;
+  }
+  if (value is VectorValue) {
+    return value.toArray();
+  }
+  if (value is TypedData) {
+    return null;
+  }
+  if (value is Map) {
+    final out = <String, dynamic>{};
+    value.forEach((k, v) {
+      out[k.toString()] = _tripDataJsonSafeValue(v);
+    });
+    return out;
+  }
+  if (value is Iterable) {
+    return value.map(_tripDataJsonSafeValue).toList();
+  }
+  return value.toString();
+}
+
+/// Keys (and key substrings) removed from the **shared copy only** — map, route, and binary.
+bool _sharePayloadKeyIsBanned(String key) {
+  final s = key.toLowerCase();
+
+  const uriKeepers = {'googlemapsuri', 'googlenavigationuri'};
+  if (uriKeepers.contains(s)) return false;
+
+  const exactBan = {
+    'geometry',
+    'bounds',
+    'viewport',
+    'camera',
+    'coordinates',
+    'overview_polyline',
+    'overviewpolyline',
+    'encoded_polyline',
+    'encodedpolyline',
+    'polylines',
+    'polyline',
+    'routes',
+    'routedata',
+    'routepoints',
+    'markers',
+    'markerbitmap',
+    'snapshot',
+    'thumbnail',
+    'thumbnails',
+    'bitmap',
+    'cached',
+    'cache',
+    'geopoint',
+    'geojson',
+    'geohash',
+    'tiles',
+    'tile',
+    'groundoverlay',
+    'vector',
+    'blob',
+    'contentbytes',
+    'photos',
+    'photometadata',
+    'addresscomponents',
+    'adrformataddress',
+    'routesteps',
+    'legs',
+    'navigationendpoint',
+    'daypolylines',
+    'routematrix',
+    'mapview',
+    'mapstyle',
+    'mapdata',
+    'mapcache',
+    'cachedmap',
+    'staticmap',
+    'mapsnapshot',
+    'routeshape',
+    'routeline',
+    'markericon',
+    'markerimage',
+    'markerdata',
+    'polylinepoints',
+    'encodedpath',
+  };
+  if (exactBan.contains(s)) return true;
+
+  if (s.contains('polyline')) return true;
+  if (s.contains('viewport')) return true;
+  if (s.contains('snapshot')) return true;
+  if (s.contains('thumbnail')) return true;
+  if (s.contains('geopoint')) return true;
+  if (s.contains('groundoverlay')) return true;
+  if (s.contains('encodedpolyline')) return true;
+  if (s.contains('markerbitmap')) return true;
+  if (s.contains('staticmap')) return true;
+  if (s.contains('mapsnapshot')) return true;
+  if (s.contains('routedata')) return true;
+  if (s.contains('routepoints')) return true;
+  if (s.contains('routeresponse')) return true;
+  if (s.contains('mapcache')) return true;
+  if (s.contains('cachedmap')) return true;
+
+  if (s == 'map' || s == 'maps') return true;
+  if (s.startsWith('map') && s != 'mapurl') return true;
+  if (s.endsWith('map') && s.length > 3) return true;
+  if (s.contains('_map') || s.contains('map_')) return true;
+
+  if (s == 'route' || s == 'routes') return true;
+  if (s.startsWith('route_') || s.endsWith('_route')) return true;
+  if (s.contains('routepoints')) return true;
+
+  if (s.contains('marker')) {
+    if (s == 'scheduledtimeminutes') return false;
+    if (s.contains('scheduledtime')) return false;
+    if (s.contains('remark')) return false;
+    return true;
+  }
+
+  return false;
+}
+
+dynamic _stripHeavyKeysForShare(
+  dynamic value, {
+  int depth = 0,
+  Set<String>? removedKeys,
+  String path = '',
+}) {
+  if (depth > 80) return null;
+  if (value == null) return null;
+  if (value is TypedData || value is Blob) {
+    removedKeys?.add(path.isEmpty ? '<TypedData>' : path);
+    return null;
+  }
+  if (value is Timestamp) {
+    return value.toDate().toUtc().toIso8601String();
+  }
+  if (value is DateTime) {
+    return value.toUtc().toIso8601String();
+  }
+  if (value is GeoPoint) {
+    return <String, double>{
+      'latitude': value.latitude,
+      'longitude': value.longitude,
+    };
+  }
+  if (value is DocumentReference) {
+    removedKeys?.add(path.isEmpty ? '<DocumentReference>' : path);
+    return null;
+  }
+  if (value is VectorValue) {
+    removedKeys?.add(path.isEmpty ? '<VectorValue>' : path);
+    return null;
+  }
+  if (value is String) {
+    if (value.length > 12000) {
+      removedKeys?.add('$path.<truncated>');
+      return value.substring(0, 12000);
+    }
+    return value;
+  }
+  if (value is num) {
+    if (value.isNaN || value.isInfinite) return null;
+    return value;
+  }
+  if (value is bool) return value;
+
+  if (value is Map) {
+    final out = <String, dynamic>{};
+    for (final e in value.entries) {
+      final k = e.key.toString();
+      final childPath = path.isEmpty ? k : '$path.$k';
+      if (_sharePayloadKeyIsBanned(k)) {
+        removedKeys?.add(childPath);
+        continue;
+      }
+      final v = _stripHeavyKeysForShare(
+        e.value,
+        depth: depth + 1,
+        removedKeys: removedKeys,
+        path: childPath,
+      );
+      if (v != null) {
+        out[k] = v;
+      } else if (e.value is bool) {
+        out[k] = e.value;
+      } else if (e.value is num && e.value == 0) {
+        out[k] = 0;
+      }
+    }
+    return out;
+  }
+
+  if (value is Iterable) {
+    final out = <dynamic>[];
+    var i = 0;
+    for (final e in value) {
+      final childPath = '$path[$i]';
+      i++;
+      final v = _stripHeavyKeysForShare(
+        e,
+        depth: depth + 1,
+        removedKeys: removedKeys,
+        path: childPath,
+      );
+      if (v != null) {
+        out.add(v);
+      } else if (e is Map) {
+        out.add(<String, dynamic>{});
+      } else if (e is Iterable) {
+        out.add(<dynamic>[]);
+      }
+    }
+    return out;
+  }
+
+  return value.toString();
+}
+
+Map<String, dynamic> _buildShareableTripSnapshotForShare(
+  Map<String, dynamic> trip,
+) {
+  final removed = <String>{};
+  if (kDebugMode) {
+    debugPrint(
+      'TravelProvider share snapshot: original top-level keys=${trip.keys.toList()}',
+    );
+  }
+
+  final normalized = _tripDataJsonSafeValue(trip);
+  if (normalized is! Map) {
+    return <String, dynamic>{};
+  }
+
+  final base = Map<String, dynamic>.from(normalized);
+  final stripped = _stripHeavyKeysForShare(
+    base,
+    removedKeys: removed,
+  );
+  if (stripped is! Map) {
+    return <String, dynamic>{};
+  }
+
+  final out = Map<String, dynamic>.from(stripped);
+
+  if (kDebugMode) {
+    debugPrint(
+      'TravelProvider share snapshot: stripped top-level keys=${out.keys.toList()}',
+    );
+    debugPrint(
+      'TravelProvider share snapshot: removed paths (showing up to 60): '
+      '${removed.take(60).join(', ')}${removed.length > 60 ? '…' : ''}',
+    );
+    final enc = jsonEncode(out);
+    debugPrint('TravelProvider share snapshot: final jsonBytes=${enc.length}');
+    for (final k in out.keys) {
+      final piece = jsonEncode(<String, dynamic>{k: out[k]});
+      if (piece.length > 25000) {
+        debugPrint(
+          'TravelProvider share snapshot: LARGE top-level field "$k" '
+          'bytes=${piece.length}',
+        );
+      }
+    }
+  }
+
+  return out;
+}
 
 class TravelProvider extends ChangeNotifier {
   final _api = PlacesService(GoogleKeys.placesKey);
@@ -101,6 +400,7 @@ class TravelProvider extends ChangeNotifier {
 
     favoritePlaces = [];
     savedTrips = [];
+    sharedTrips = [];
     offlineSavedTrips = [];
     searchHistory = [];
     recentlyViewed = [];
@@ -322,6 +622,7 @@ class TravelProvider extends ChangeNotifier {
   void _applyTravelDataFromFirestore(Map<String, dynamic> data) {
     favoritePlaces = _asMapList(data['favoritePlaces']);
     savedTrips = _asMapList(data['savedTrips']);
+    sharedTrips = _asMapList(data['sharedTrips']);
     // Offline saved itineraries are intentionally local-only; do not sync to Firestore.
     offlineSavedTrips = [];
 
@@ -375,6 +676,7 @@ class TravelProvider extends ChangeNotifier {
       final payload = <String, dynamic>{
         'favoritePlaces': favoritePlaces,
         'savedTrips': savedTrips,
+        'sharedTrips': sharedTrips,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -822,6 +1124,9 @@ class TravelProvider extends ChangeNotifier {
 
   List<Map<String, dynamic>> savedTrips = [];
 
+  /// Itineraries shared with this user (Firestore `sharedTrips` on travel storage).
+  List<Map<String, dynamic>> sharedTrips = [];
+
   // ---------------------------------------------------------------------------
   // Offline Saved Itinerary (explicit user action from Trip Detail)
   // ---------------------------------------------------------------------------
@@ -1044,6 +1349,208 @@ class TravelProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('TravelProvider deleteSavedTrip: $e');
       return false;
+    }
+  }
+
+  /// Reloads travel data from Firestore for the current storage scope (e.g. after a share was received).
+  Future<void> refreshTravelFromFirestore() async {
+    if (_isGuestScope) return;
+
+    try {
+      await _loadTravelFromFirestore();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('TravelProvider refreshTravelFromFirestore: $e');
+    }
+  }
+
+  /// Returns a deep copy of [trip] suitable for [loadSavedTripIntoPlanner] so the user saves a new itinerary.
+  Map<String, dynamic> prepareTripSnapshotForPlannerReuse(
+    Map<String, dynamic> trip,
+  ) {
+    try {
+      final sanitized = _tripDataJsonSafeValue(trip);
+      if (sanitized is! Map) return Map<String, dynamic>.from(trip);
+
+      final raw = jsonDecode(jsonEncode(sanitized));
+      if (raw is! Map) return Map<String, dynamic>.from(trip);
+
+      final m = Map<String, dynamic>.from(raw);
+      m.remove('id');
+      m.remove('sharedEntryId');
+      m.remove('sharedByUid');
+      m.remove('sharedByEmail');
+      m.remove('sharedAt');
+      return m;
+    } catch (_) {
+      final m = Map<String, dynamic>.from(trip);
+      m.remove('id');
+      return m;
+    }
+  }
+
+  /// Shares a snapshot of [trip] with the account registered in Firestore under [emailInput].
+  /// Returns `null` on success, or a localization key for an error message.
+  Future<String?> shareItineraryWithUserByEmail(
+    String emailInput,
+    Map<String, dynamic> trip,
+  ) async {
+    if (_isGuestScope) return 'share_requires_login';
+
+    final trimmed = emailInput.trim();
+    if (trimmed.isEmpty || !trimmed.contains('@')) {
+      return 'share_invalid_email';
+    }
+
+    final me = FirebaseAuth.instance.currentUser;
+    if (me == null) return 'share_requires_login';
+
+    final myEmail = me.email?.trim().toLowerCase() ?? '';
+    if (trimmed.toLowerCase() == myEmail) {
+      return 'share_cannot_share_with_self';
+    }
+
+    String? receiverUid;
+
+    final candidates = <String>{trimmed, trimmed.toLowerCase()};
+    for (final candidate in candidates) {
+      if (candidate.isEmpty) continue;
+
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: candidate)
+            .limit(1)
+            .get();
+
+        if (snap.docs.isNotEmpty) {
+          receiverUid = snap.docs.first.id;
+          break;
+        }
+      } catch (e) {
+        debugPrint('TravelProvider shareItinerary lookup: $e');
+        return 'share_failed';
+      }
+    }
+
+    if (receiverUid == null || receiverUid.isEmpty) {
+      return 'share_user_not_found';
+    }
+
+    if (receiverUid == me.uid) return 'share_cannot_share_with_self';
+
+    final statusKey = trip['statusKey']?.toString();
+    final tripId = trip['id']?.toString();
+    final endDate = trip['endDate']?.toString();
+    if (kDebugMode) {
+      debugPrint(
+        'TravelProvider share: start statusKey=$statusKey id=$tripId endDate=$endDate '
+        'receiver=$receiverUid email=$trimmed',
+      );
+    }
+
+    Map<String, dynamic> tripCopy;
+
+    try {
+      final snapshot = _buildShareableTripSnapshotForShare(
+        Map<String, dynamic>.from(trip),
+      );
+      if (snapshot.isEmpty) {
+        debugPrint('TravelProvider share: share snapshot is empty');
+        return 'share_failed';
+      }
+
+      final encoded = jsonEncode(snapshot);
+      if (kDebugMode) {
+        debugPrint(
+          'TravelProvider share: share payload jsonBytes=${encoded.length}',
+        );
+      }
+
+      final raw = jsonDecode(encoded);
+      if (raw is! Map) return 'share_failed';
+
+      tripCopy = Map<String, dynamic>.from(raw);
+      tripCopy.remove('id');
+      tripCopy.remove('sharedEntryId');
+      tripCopy.remove('sharedByUid');
+      tripCopy.remove('sharedByEmail');
+      tripCopy.remove('sharedAt');
+    } catch (e, st) {
+      debugPrint('TravelProvider shareItineraryWithUserByEmail encode: $e\n$st');
+      return 'share_failed';
+    }
+
+    final entry = <String, dynamic>{
+      'sharedEntryId': DateTime.now().microsecondsSinceEpoch.toString(),
+      'trip': tripCopy,
+      'sharedByUid': me.uid,
+      'sharedByEmail': me.email ?? '',
+      'sharedAt': DateTime.now().toUtc().toIso8601String(),
+    };
+
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(receiverUid)
+        .collection(_firestoreTravelCollection)
+        .doc(_firestoreTravelDocId);
+
+    try {
+      await ref.set(
+        {
+          'sharedTrips': FieldValue.arrayUnion([entry]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      if (kDebugMode) {
+        debugPrint(
+          'TravelProvider share: Firestore arrayUnion ok sharedEntryId=${entry['sharedEntryId']}',
+        );
+      }
+      return null;
+    } catch (e, st) {
+      debugPrint(
+        'TravelProvider shareItineraryWithUserByEmail arrayUnion failed: $e\n$st',
+      );
+      try {
+        await FirebaseFirestore.instance.runTransaction((txn) async {
+          final snap = await txn.get(ref);
+          final data = snap.data() ?? {};
+          final merged = <Map<String, dynamic>>[];
+          final cur = data['sharedTrips'];
+          if (cur is List) {
+            for (final x in cur) {
+              if (x is Map<String, dynamic>) {
+                merged.add(Map<String, dynamic>.from(x));
+              } else if (x is Map) {
+                merged.add(Map<String, dynamic>.from(x));
+              }
+            }
+          }
+          merged.add(entry);
+          txn.set(
+            ref,
+            {
+              'sharedTrips': merged,
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+        });
+        if (kDebugMode) {
+          debugPrint(
+            'TravelProvider share: Firestore transaction append ok '
+            'sharedEntryId=${entry['sharedEntryId']}',
+          );
+        }
+        return null;
+      } catch (e2, st2) {
+        debugPrint(
+          'TravelProvider shareItineraryWithUserByEmail transaction failed: $e2\n$st2',
+        );
+        return 'share_failed';
+      }
     }
   }
 
