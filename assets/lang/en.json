@@ -516,5 +516,6 @@
   "pdf_save_failed": "Could not save PDF",
   "pdf_save_cancelled": "Save cancelled",
   "pdf_share_pick_destination": "Choose where to save: pick Files, Drive, or Downloads from the share menu",
-  "gmail_open_failed": "Could not open Gmail. Install Gmail or check that it is enabled."
+  "gmail_open_failed": "Could not open Gmail. Install Gmail or check that it is enabled.",
+  "give_feedback": "Give Feedback"
 }
