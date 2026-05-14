@@ -9,7 +9,7 @@ import 'package:wajeeh/widgets/place_list_card.dart';
 import 'SearchPage.dart';
 import '../services/itinerary_walkthrough.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
-
+import 'dart:async';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,6 +19,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  Timer? _timer;
   List<String> filterOptions = [];
 
   List<String> selectedFilters = [];
@@ -28,14 +29,27 @@ class _HomePageState extends State<HomePage> {
   final _firstPlaceArrowKey = GlobalKey();
 
   @override
+  @override
   void initState() {
     super.initState();
+
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await context.read<AuthProvider>().loadUserProfile();
       _loadFiltersOnce();
       if (!mounted) return;
       _loadPlaces();
     });
+  }
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadFiltersOnce() async {
@@ -296,12 +310,28 @@ class _HomePageState extends State<HomePage> {
                             .snapshots(),
                         builder: (context, snapshot) {
 
-                          if (!snapshot.hasData ||
-                              snapshot.data!.docs.isEmpty) {
+                          if (!snapshot.hasData) {
                             return const SizedBox();
                           }
 
-                          final count = snapshot.data!.docs.length;
+                          final now = DateTime.now();
+
+                          final count = snapshot.data!.docs.where((doc) {
+                            final data = doc.data() as Map<String, dynamic>;
+                            final scheduledAt = data["scheduledAt"];
+
+                            if (scheduledAt == null) return true;
+
+                            if (scheduledAt is Timestamp) {
+                              return !scheduledAt.toDate().isAfter(now);
+                            }
+
+                            return true;
+                          }).length;
+
+                          if (count == 0) {
+                            return const SizedBox();
+                          }
 
                           return Container(
                             padding: const EdgeInsets.all(3),
