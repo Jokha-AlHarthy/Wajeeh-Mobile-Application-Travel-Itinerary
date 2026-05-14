@@ -19,10 +19,13 @@ class TripDetailScreen extends StatelessWidget {
     required this.trip,
     /// Optional day index (0-based) for callers that open a specific day; reserved for future UI.
     this.initialDayIndex,
+    /// When true, this trip was opened from the user's shared-inbox list (not their own history).
+    this.isSharedInboxEntry = false,
   });
 
   final Map<String, dynamic> trip;
   final int? initialDayIndex;
+  final bool isSharedInboxEntry;
 
   static const double _leadW = 115;
   static const double _leadH = 95;
@@ -336,6 +339,27 @@ class TripDetailScreen extends StatelessWidget {
         SnackBar(content: Text(context.tr('itinerary_delete_failed'))),
       );
     }
+  }
+
+  void _onReuseItineraryPressed(BuildContext context) {
+    final travel = context.read<TravelProvider>();
+    final tripForPlanner = travel.prepareTripSnapshotForPlannerReuse(trip);
+    travel.loadSavedTripIntoPlanner(tripForPlanner);
+    Navigator.pushNamed(
+      context,
+      '/trip_planing',
+      arguments: <String, dynamic>{'trip': tripForPlanner},
+    );
+  }
+
+  void _showShareItineraryDialog(
+    BuildContext context,
+    Map<String, dynamic> tripMap,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _ShareItineraryDialog(trip: tripMap),
+    );
   }
 
   List<Widget> _buildActivityBlocks(
@@ -738,6 +762,55 @@ class TripDetailScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      if (isSharedInboxEntry)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 42,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () => _onReuseItineraryPressed(context),
+                            child: Text(
+                              context.tr('reuse_itinerary'),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        )
+                      else if (firebase_auth.FirebaseAuth.instance.currentUser !=
+                          null)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 42,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () =>
+                                _showShareItineraryDialog(context, trip),
+                            child: Text(
+                              context.tr('share_itinerary'),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
                       Divider(
                         height: 1,
                         color: theme.dividerTheme.color ?? borderColor,
@@ -769,13 +842,16 @@ class TripDetailScreen extends StatelessWidget {
                             theme.colorScheme.primary,
                             onPressed: () => _downloadTripPdf(context, trip),
                           ),
-                          const SizedBox(width: 8),
-                          _roundedButton(
-                            context,
-                            context.tr('delete_itinerary'),
-                            theme.colorScheme.error,
-                            onPressed: () => _onDeleteItineraryPressed(context),
-                          ),
+                          if (!isSharedInboxEntry) ...[
+                            const SizedBox(width: 8),
+                            _roundedButton(
+                              context,
+                              context.tr('delete_itinerary'),
+                              theme.colorScheme.error,
+                              onPressed: () =>
+                                  _onDeleteItineraryPressed(context),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -815,6 +891,143 @@ class TripDetailScreen extends StatelessWidget {
         ),
       ),
       bottomNavigationBar: const AppFooter(currentIndex: 1),
+    );
+  }
+}
+
+class _ShareItineraryDialog extends StatefulWidget {
+  const _ShareItineraryDialog({required this.trip});
+
+  final Map<String, dynamic> trip;
+
+  @override
+  State<_ShareItineraryDialog> createState() => _ShareItineraryDialogState();
+}
+
+class _ShareItineraryDialogState extends State<_ShareItineraryDialog> {
+  final TextEditingController _emailCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onSharePressed() async {
+    if (_saving) return;
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('share_invalid_email'))),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    final travel = context.read<TravelProvider>();
+    final err =
+        await travel.shareItineraryWithUserByEmail(email, widget.trip);
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    if (err == null) {
+      final messenger = ScaffoldMessenger.of(context);
+      final msg = context.tr('share_itinerary_success');
+      Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr(err))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(context.tr('share_itinerary_dialog_title')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              context.tr('share_itinerary_dialog_body'),
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
+              decoration: InputDecoration(
+                labelText: context.tr('email'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 42,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE53935),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: _saving ? null : () => Navigator.pop(context),
+                  child: Text(
+                    context.tr('cancel'),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 42,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F1B35),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: _saving ? null : _onSharePressed,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          context.tr('share_itinerary_dialog_share'),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
