@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -19,6 +20,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  Timer? _notificationTimer;
   bool isMale = true;
   bool get isDark => context.watch<ThemeProvider>().isDarkMode;
 
@@ -37,6 +39,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+
+    _notificationTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = context.read<AuthProvider>();
@@ -72,6 +80,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void dispose() {
+    _notificationTimer?.cancel();
     firstNameC.dispose();
     lastNameC.dispose();
     emailC.dispose();
@@ -402,12 +411,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           .snapshots(),
                       builder: (context, snapshot) {
 
-                        if (!snapshot.hasData ||
-                            snapshot.data!.docs.isEmpty) {
+                        if (!snapshot.hasData) {
                           return const SizedBox();
                         }
 
-                        final count = snapshot.data!.docs.length;
+                        final now = DateTime.now();
+
+                        final count = snapshot.data!.docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final scheduledAt = data["scheduledAt"];
+
+                          if (scheduledAt == null) return true;
+
+                          if (scheduledAt is Timestamp) {
+                            return !scheduledAt.toDate().isAfter(now);
+                          }
+
+                          return true;
+                        }).length;
+
+                        if (count == 0) {
+                          return const SizedBox();
+                        }
 
                         return Container(
                           padding: const EdgeInsets.all(3),
