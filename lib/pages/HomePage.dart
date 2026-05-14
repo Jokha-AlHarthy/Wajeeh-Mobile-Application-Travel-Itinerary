@@ -28,7 +28,11 @@ class _HomePageState extends State<HomePage> {
 
   final _firstPlaceArrowKey = GlobalKey();
 
-  @override
+  bool _homeLoadScheduledForFrame = false;
+
+  /// Last home city we already requested [TravelProvider.loadHome] for (avoids duplicate calls on unrelated rebuilds).
+  String? _lastHomeCitySentToProvider;
+
   @override
   void initState() {
     super.initState();
@@ -43,7 +47,7 @@ class _HomePageState extends State<HomePage> {
       await context.read<AuthProvider>().loadUserProfile();
       _loadFiltersOnce();
       if (!mounted) return;
-      _loadPlaces();
+      setState(() {});
     });
   }
   @override
@@ -72,8 +76,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _loadPlaces() {
-    // Home feed prioritizes Oman (Vision 2040); results are cached per user scope.
-    context.read<TravelProvider>().loadHome('Oman');
+    final auth = context.read<AuthProvider>();
+    final loc = auth.locationText?.trim();
+    final city = (loc == null || loc.isEmpty) ? 'Oman' : loc;
+    _lastHomeCitySentToProvider = city;
+    context.read<TravelProvider>().loadHome(city, forceRefresh: true);
   }
 
   void _showFilterSheet() {
@@ -181,11 +188,22 @@ class _HomePageState extends State<HomePage> {
                           borderRadius: BorderRadius.circular(14),
                         ),
                       ),
-                      onPressed: () {
+                      onPressed: () async {
+                        final travel = context.read<TravelProvider>();
+                        final auth = context.read<AuthProvider>();
                         setState(() {
                           selectedFilters = tempFilters;
                         });
                         Navigator.pop(context);
+                        final loc = auth.locationText?.trim();
+                        final city =
+                            (loc == null || loc.isEmpty) ? 'Oman' : loc;
+                        await travel.syncHomeFilterSupplement(
+                          city,
+                          selectedFilters,
+                          priceSortBy: priceSortBy,
+                          ratingSortBy: ratingSortBy,
+                        );
                       },
                       child: Text(
                         context.tr('apply_filter'),
@@ -209,9 +227,23 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
-    final travel = Provider.of<TravelProvider>(context);
+    final auth = context.watch<AuthProvider>();
+    final travel = context.watch<TravelProvider>();
     final theme = Theme.of(context);
+
+    if (!_homeLoadScheduledForFrame) {
+      _homeLoadScheduledForFrame = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _homeLoadScheduledForFrame = false;
+        if (!mounted) return;
+        final loc = context.read<AuthProvider>().locationText?.trim();
+        final city = (loc == null || loc.isEmpty) ? 'Oman' : loc;
+        if (_lastHomeCitySentToProvider == city) return;
+        _lastHomeCitySentToProvider = city;
+        context.read<TravelProvider>().loadHome(city);
+      });
+    }
+
     final name = auth.fullName ?? context.tr('user');
     final location = auth.locationText;
 
@@ -221,6 +253,7 @@ class _HomePageState extends State<HomePage> {
       maxPrice: null,
       priceSortBy: priceSortBy,
       ratingSortBy: ratingSortBy,
+      sourceOverride: travel.homeMergedSourceForFilters(),
     );
 
     final accentColor = theme.colorScheme.primary;
@@ -437,7 +470,14 @@ class _HomePageState extends State<HomePage> {
     );
 
     Widget listSliver;
-    if (travel.loading && travel.homePlaces.isEmpty) {
+    if (travel.homeCategoryFallbackLoading &&
+        selectedFilters.isNotEmpty &&
+        visiblePlaces.isEmpty) {
+      listSliver = const SliverFillRemaining(
+        hasScrollBody: false,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    } else if (travel.loading && travel.homePlaces.isEmpty) {
       listSliver = const SliverFillRemaining(
         hasScrollBody: false,
         child: Center(child: CircularProgressIndicator()),
@@ -450,7 +490,7 @@ class _HomePageState extends State<HomePage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                travel.error!,
+                context.tr('places_connection_error'),
                 style: const TextStyle(color: Colors.red, fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -464,14 +504,18 @@ class _HomePageState extends State<HomePage> {
         ),
       );
     } else if (visiblePlaces.isEmpty) {
+      final filterErr = selectedFilters.isNotEmpty &&
+          travel.homeCategoryFallbackErrorKey != null;
       listSliver = SliverFillRemaining(
         hasScrollBody: false,
         child: Center(
           child: Text(
-            travel.lastHomeLoadFilteredByInterests &&
-                    travel.homePlaces.isEmpty
-                ? context.tr('no_places_match_interests')
-                : context.tr('no_places_found'),
+            filterErr
+                ? context.tr(travel.homeCategoryFallbackErrorKey!)
+                : (travel.lastHomeLoadFilteredByInterests &&
+                        travel.homePlaces.isEmpty
+                    ? context.tr('no_places_match_interests')
+                    : context.tr('no_places_found')),
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.grey),
           ),
