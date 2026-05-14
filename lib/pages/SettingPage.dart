@@ -8,6 +8,7 @@ import 'PrivacyPolicyPage.dart';
 import 'TermsPage.dart';
 import 'my_preference_page.dart';
 import 'saved_itinerary_screen.dart';
+import 'shared_itinerary_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -253,6 +254,19 @@ class SettingPage extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => const SavedItineraryScreen(),
+                    ),
+                  );
+                },
+              ),
+              _settingTile(
+                context: context,
+                icon: Icons.people_outline,
+                title: context.tr('shared_itinerary'),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const SharedItineraryScreen(),
                     ),
                   );
                 },
