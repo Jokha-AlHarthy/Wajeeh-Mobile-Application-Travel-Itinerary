@@ -265,6 +265,9 @@ class TravelProvider extends ChangeNotifier {
     }
 
     _backfillMissingScheduleTimesInDraft();
+
+    final eId = m['editingTripId']?.toString().trim();
+    _editingSavedTripId = (eId != null && eId.isNotEmpty) ? eId : null;
   }
 
   /// Legacy trips saved before scheduling: assign non-colliding times so save/validate works.
@@ -347,13 +350,20 @@ class TravelProvider extends ChangeNotifier {
       placesJson[e.key.toString()] = e.value;
     }
 
-    return {
+    final out = <String, dynamic>{
       'start': tripPlanStart?.toIso8601String(),
       'end': tripPlanEnd?.toIso8601String(),
       'itineraryActive': tripPlanItineraryActive,
       'tripName': tripPlanTripName,
       'placesByDay': placesJson,
     };
+
+    final eId = _editingSavedTripId?.trim();
+    if (eId != null && eId.isNotEmpty) {
+      out['editingTripId'] = eId;
+    }
+
+    return out;
   }
 
   Future<void> _pushFullTravelToFirestore() async {
@@ -556,8 +566,11 @@ class TravelProvider extends ChangeNotifier {
     return null;
   }
 
+  /// Manual trip planner: max activities + hotel rows per calendar day.
+  static const int maxManualPlacesPerTripDay = 7;
+
   String? _validateDayPlacesList(List<Map<String, dynamic>> list) {
-    if (list.length > 5) return 'max_places_per_day';
+    if (list.length > maxManualPlacesPerTripDay) return 'max_places_per_day';
 
     final seenIds = <String>{};
 
@@ -569,14 +582,11 @@ class TravelProvider extends ChangeNotifier {
 
     if (list.isEmpty) return null;
 
-    final anchor = list.first;
-    final anchorAddr = placeAddress(anchor);
-    final anchorCity = _extractCity(anchorAddr);
+    final anchorAddr = placeAddress(list.first);
     final anchorCountry = _extractCountryFromAddress(anchorAddr);
 
     for (final p in list.skip(1)) {
       final addr = placeAddress(p);
-      final newCity = _extractCity(addr);
       final newCountry = _extractCountryFromAddress(addr);
 
       if (newCountry.isNotEmpty &&
@@ -584,11 +594,26 @@ class TravelProvider extends ChangeNotifier {
           newCountry.toLowerCase() != anchorCountry.toLowerCase()) {
         return 'different_countries_same_day';
       }
+    }
 
-      if (newCity.isNotEmpty &&
-          anchorCity.isNotEmpty &&
-          newCity.toLowerCase() != anchorCity.toLowerCase()) {
-        return 'different_cities_same_day';
+    String? anchorGov;
+
+    for (final p in list) {
+      final g = _governorateComparableKey(p);
+
+      if (g.isNotEmpty) {
+        anchorGov = g;
+        break;
+      }
+    }
+
+    if (anchorGov == null) return null;
+
+    for (final p in list) {
+      final gov = _governorateComparableKey(p);
+
+      if (gov.isNotEmpty && gov != anchorGov) {
+        return 'different_governorates_same_day';
       }
     }
 
@@ -635,7 +660,7 @@ class TravelProvider extends ChangeNotifier {
       () => <Map<String, dynamic>>[],
     );
 
-    if (list.length >= 5) {
+    if (list.length >= maxManualPlacesPerTripDay) {
       error = 'max_places_per_day';
       notifyListeners();
       return false;
@@ -1061,15 +1086,22 @@ class TravelProvider extends ChangeNotifier {
         placesJson[e.key.toString()] = e.value;
       }
 
+      final draftBody = <String, dynamic>{
+        'start': tripPlanStart?.toIso8601String(),
+        'end': tripPlanEnd?.toIso8601String(),
+        'itineraryActive': tripPlanItineraryActive,
+        'tripName': tripPlanTripName,
+        'placesByDay': placesJson,
+      };
+
+      final eId = _editingSavedTripId?.trim();
+      if (eId != null && eId.isNotEmpty) {
+        draftBody['editingTripId'] = eId;
+      }
+
       await prefs.setString(
         key,
-        jsonEncode({
-          'start': tripPlanStart?.toIso8601String(),
-          'end': tripPlanEnd?.toIso8601String(),
-          'itineraryActive': tripPlanItineraryActive,
-          'tripName': tripPlanTripName,
-          'placesByDay': placesJson,
-        }),
+        jsonEncode(draftBody),
       );
     } catch (_) {}
   }
@@ -1338,20 +1370,27 @@ class TravelProvider extends ChangeNotifier {
     final editId = _editingSavedTripId?.trim();
 
     if (editId != null && editId.isNotEmpty) {
-      final idx = savedTrips.indexWhere((t) => t['id']?.toString() == editId);
+      trip['id'] = editId;
 
-      if (idx >= 0) {
-        final existing = savedTrips[idx];
+      final idMatches = <int>[];
+      for (var i = 0; i < savedTrips.length; i++) {
+        final tid = savedTrips[i]['id']?.toString();
+        if (tid != null && tid.trim() == editId) idMatches.add(i);
+      }
 
-        trip['id'] = editId;
+      if (idMatches.isNotEmpty) {
+        final keepIdx = idMatches.first;
+        final existing = savedTrips[keepIdx];
         trip['createdAt'] =
             existing['createdAt']?.toString() ?? existing['created_at']?.toString() ?? nowIso;
+        savedTrips[keepIdx] = trip;
 
-        savedTrips[idx] = trip;
+        for (var j = idMatches.length - 1; j >= 1; j--) {
+          savedTrips.removeAt(idMatches[j]);
+        }
       } else {
-        trip['id'] = editId;
         trip['createdAt'] = nowIso;
-        savedTrips.insert(0, trip);
+        savedTrips.add(trip);
       }
     } else {
       trip['id'] = DateTime.now().millisecondsSinceEpoch.toString();
@@ -2160,6 +2199,211 @@ class TravelProvider extends ChangeNotifier {
     if (parts.length < 2) return "";
 
     return parts.last;
+  }
+
+  /// Normalized governorate / admin-area key for same-day GCC rules (Oman-focused fallbacks).
+  String _governorateComparableKey(Map<String, dynamic> place) {
+    final stored = place['governorateKey']?.toString().trim();
+
+    if (stored != null && stored.isNotEmpty) {
+      return _normalizeGovernorateComparable(stored);
+    }
+
+    final fromComponents = _adminAreaLevel1FromAddressComponents(place['addressComponents']);
+
+    if (fromComponents.isNotEmpty) {
+      return _normalizeGovernorateComparable(fromComponents);
+    }
+
+    final addr = placeAddress(place);
+    final fromAddr = _governorateFromFreeformAddress(addr);
+
+    if (fromAddr.isNotEmpty) return fromAddr;
+
+    final city = _extractCity(addr);
+    var key = _omanLocalityToGovernorateKey(city);
+
+    if (key.isNotEmpty) return key;
+
+    key = _omanGovernorateFromAddressSegments(addr);
+
+    if (key.isNotEmpty) return key;
+
+    key = _omanLocalityToGovernorateKey(placeName(place));
+
+    return key;
+  }
+
+  String _normalizeGovernorateComparable(String raw) {
+    var s = raw.toLowerCase().trim();
+
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    s = s.replaceAll(' governorate', '');
+    s = s.replaceAll('muḥāfaẓat', 'muhafazat');
+    s = s.replaceAll(RegExp(r'^محافظة\s*'), '');
+    s = s.replaceAll(RegExp(r'\s+'), '_');
+
+    return s;
+  }
+
+  String _adminAreaLevel1FromAddressComponents(dynamic raw) {
+    if (raw is! List) return '';
+
+    for (final item in raw) {
+      if (item is! Map) continue;
+
+      final types = item['types'];
+
+      if (types is! List) continue;
+
+      final typeStrs = types.map((e) => e.toString()).toList();
+
+      if (!typeStrs.contains('administrative_area_level_1')) continue;
+
+      final lt = item['longText']?.toString() ?? item['long_name']?.toString();
+      final st = item['shortText']?.toString() ?? item['short_name']?.toString();
+
+      if (lt != null && lt.trim().isNotEmpty) return lt.trim();
+
+      if (st != null && st.trim().isNotEmpty) return st.trim();
+    }
+
+    return '';
+  }
+
+  static const Map<String, String> _omanGovernoratePhraseKeys = {
+    'ash sharqiyah north governorate': 'ash_sharqiyah_north',
+    'ash sharqiyah south governorate': 'ash_sharqiyah_south',
+    'al batinah north governorate': 'al_batinah_north',
+    'al batinah south governorate': 'al_batinah_south',
+    'ad dakhiliyah governorate': 'ad_dakhiliyah',
+    'adh dakhiliyah governorate': 'ad_dakhiliyah',
+    'ad dhahirah governorate': 'ad_dhahirah',
+    'adh dhahirah governorate': 'ad_dhahirah',
+    'al buraimi governorate': 'al_buraimi',
+    'al wusta governorate': 'al_wusta',
+    'musandam governorate': 'musandam',
+    'dhofar governorate': 'dhofar',
+    'muscat governorate': 'muscat',
+    'محافظة شمال الشرقية': 'ash_sharqiyah_north',
+    'محافظة جنوب الشرقية': 'ash_sharqiyah_south',
+    'محافظة شمال الباطنة': 'al_batinah_north',
+    'محافظة جنوب الباطنة': 'al_batinah_south',
+    'محافظة الداخلية': 'ad_dakhiliyah',
+    'محافظة الظاهرة': 'ad_dhahirah',
+    'محافظة البريمي': 'al_buraimi',
+    'محافظة الوسطى': 'al_wusta',
+    'محافظة مسندم': 'musandam',
+    'محافظة ظفار': 'dhofar',
+    'محافظة مسقط': 'muscat',
+  };
+
+  String _governorateFromFreeformAddress(String address) {
+    if (address.isEmpty) return '';
+
+    final lower = address.toLowerCase();
+    final keys = _omanGovernoratePhraseKeys.keys.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+
+    for (final phrase in keys) {
+      final isAscii = phrase.isNotEmpty && phrase.codeUnitAt(0) < 128;
+      final hit = isAscii ? lower.contains(phrase) : address.contains(phrase);
+
+      if (hit) return _omanGovernoratePhraseKeys[phrase]!;
+    }
+
+    return '';
+  }
+
+  static const Map<String, String> _omanLocalityGovernorateKeys = {
+    'seeb': 'muscat',
+    'as sib': 'muscat',
+    'sib': 'muscat',
+    'al seeb': 'muscat',
+    'muscat': 'muscat',
+    'muttrah': 'muscat',
+    'matrah': 'muscat',
+    'qurum': 'muscat',
+    'al qurum': 'muscat',
+    'ruwi': 'muscat',
+    'bawshar': 'muscat',
+    'al amerat': 'muscat',
+    'al aziba': 'muscat',
+    'al khuwair': 'muscat',
+    'ghubrah': 'muscat',
+    'ghala': 'muscat',
+    'al rusayl': 'muscat',
+    'madinat as sultan qaboos': 'muscat',
+    'al mouj': 'muscat',
+    'almouj': 'muscat',
+    'nizwa': 'ad_dakhiliyah',
+    'bahla': 'ad_dakhiliyah',
+    'adam': 'ad_dakhiliyah',
+    'manah': 'ad_dakhiliyah',
+    'al hamra': 'ad_dakhiliyah',
+    'izki': 'ad_dakhiliyah',
+    'bidbid': 'ad_dakhiliyah',
+    'samail': 'ad_dakhiliyah',
+    'sohar': 'al_batinah_north',
+    'shinas': 'al_batinah_north',
+    'liwa': 'al_batinah_north',
+    'saham': 'al_batinah_north',
+    'al khaburah': 'al_batinah_north',
+    'suwaiq': 'al_batinah_north',
+    'al awabi': 'al_batinah_south',
+    'nakhal': 'al_batinah_south',
+    'wadi al maawil': 'al_batinah_south',
+    'rustaq': 'al_batinah_south',
+    'barka': 'al_batinah_south',
+    'al musannah': 'al_batinah_south',
+    'ibra': 'ash_sharqiyah_north',
+    'bidiyah': 'ash_sharqiyah_north',
+    'al mudaybi': 'ash_sharqiyah_north',
+    'wadi bani khalid': 'ash_sharqiyah_north',
+    'sur': 'ash_sharqiyah_south',
+    'al kamil wal wafi': 'ash_sharqiyah_south',
+    'jalan': 'ash_sharqiyah_south',
+    'masirah': 'ash_sharqiyah_south',
+    'salalah': 'dhofar',
+    'taqah': 'dhofar',
+    'mirbat': 'dhofar',
+    'rakhyut': 'dhofar',
+    'thumrait': 'dhofar',
+    'sadh': 'dhofar',
+    'mughsayl': 'dhofar',
+    'dibba': 'musandam',
+    'khasab': 'musandam',
+    'bukha': 'musandam',
+    'haima': 'al_wusta',
+    'duqm': 'al_wusta',
+    'mahout': 'al_wusta',
+    'al jazer': 'al_wusta',
+    'ibri': 'ad_dhahirah',
+    'yanqul': 'ad_dhahirah',
+    'dhank': 'ad_dhahirah',
+    'al buraimi': 'al_buraimi',
+    'mahdah': 'al_buraimi',
+    'as sunaynah': 'al_buraimi',
+  };
+
+  String _omanLocalityToGovernorateKey(String raw) {
+    if (raw.isEmpty) return '';
+
+    final k = raw.toLowerCase().trim();
+
+    return _omanLocalityGovernorateKeys[k] ?? '';
+  }
+
+  String _omanGovernorateFromAddressSegments(String address) {
+    if (address.isEmpty) return '';
+
+    for (final seg in address.split(',')) {
+      final g = _omanLocalityToGovernorateKey(seg.trim());
+
+      if (g.isNotEmpty) return g;
+    }
+
+    return '';
   }
 
   String _buildSavedTripCitiesLine() {
