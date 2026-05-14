@@ -371,6 +371,8 @@
   "error_weak_password": "Password is too weak",
   "error_too_many_requests": "Too many attempts. Please try again later",
   "error_network": "Network error. Check your internet connection",
+  "places_connection_error": "Unable to load places. Please check your connection and try again.",
+  "browse_near_location_fallback": "Select your location",
   "error_user_disabled": "This account has been disabled",
   "error_operation_not_allowed": "This operation is not allowed",
   "error_requires_recent_login": "Please log in again to continue",
