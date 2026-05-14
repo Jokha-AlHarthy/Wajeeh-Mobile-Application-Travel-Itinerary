@@ -76,13 +76,29 @@ class SettingPage extends StatelessWidget {
                                   .snapshots(),
                               builder: (context, snapshot) {
 
-                                if (!snapshot.hasData ||
-                                    snapshot.data!.docs.isEmpty) {
+                                if (!snapshot.hasData) {
                                   return const SizedBox();
                                 }
 
-                                final count = snapshot.data!.docs.length;
+                                final now = DateTime.now();
 
+                                final count = snapshot.data!.docs.where((doc) {
+                                  final data = doc.data() as Map<String, dynamic>;
+                                  final scheduledAt = data["scheduledAt"];
+
+                                  if (scheduledAt == null) return true;
+
+                                  if (scheduledAt is Timestamp) {
+                                    return !scheduledAt.toDate().isAfter(now);
+                                  }
+
+                                  return true;
+                                }).length;
+
+                                if (count == 0) {
+                                  return const SizedBox();
+                                }
+                                
                                 return Container(
                                   padding: const EdgeInsets.all(3),
                                   constraints: const BoxConstraints(
