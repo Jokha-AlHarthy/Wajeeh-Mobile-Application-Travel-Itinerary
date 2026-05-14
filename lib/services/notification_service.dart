@@ -20,6 +20,7 @@ class NotificationService {
     required String message,
     required String type,
     DateTime? scheduledAt,
+    String? tripId,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -34,6 +35,7 @@ class NotificationService {
       "createdAt": Timestamp.now(),
       "scheduledAt":
       scheduledAt != null ? Timestamp.fromDate(scheduledAt) : null,
+      "tripId": tripId,
     });
   }
 }
