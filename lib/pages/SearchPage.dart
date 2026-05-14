@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../localization/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/travel_provider.dart';
+import '../utils/invalid_place_text.dart';
 import 'DisplayResultScreen.dart';
 
 class SearchPage extends StatefulWidget {
@@ -24,9 +25,62 @@ const List<String> _placeCategoryFilterKeys = [
   'filter_food_restaurants',
 ];
 
+/// GCC-only quick chips when there is no personal search history (never uses Home data).
+const List<String> _defaultGccSearchChips = [
+  'Dubai',
+  'Abu Dhabi',
+  'Muscat',
+  'Riyadh',
+  'Jeddah',
+  'Doha',
+  'Manama',
+  'Kuwait City',
+];
+
+/// Static GCC highlights for Search-page placeholders (not tied to Home recommendations).
+final List<Map<String, dynamic>> _popularGccSpotlightPlaces = [
+  {
+    'displayName': {'text': 'Burj Khalifa'},
+    'formattedAddress': 'Dubai, United Arab Emirates',
+    'location': {'latitude': 25.1972, 'longitude': 55.2744},
+    'types': ['tourist_attraction'],
+  },
+  {
+    'displayName': {'text': 'Sultan Qaboos Grand Mosque'},
+    'formattedAddress': 'Muscat, Oman',
+    'location': {'latitude': 23.5852, 'longitude': 58.3891},
+    'types': ['mosque'],
+  },
+  {
+    'displayName': {'text': 'National Museum of Qatar'},
+    'formattedAddress': 'Doha, Qatar',
+    'location': {'latitude': 25.2867, 'longitude': 51.5333},
+    'types': ['museum'],
+  },
+  {
+    'displayName': {'text': 'Al Faisaliah Tower'},
+    'formattedAddress': 'Riyadh, Saudi Arabia',
+    'location': {'latitude': 24.6904, 'longitude': 46.6853},
+    'types': ['tourist_attraction'],
+  },
+  {
+    'displayName': {'text': 'Bahrain Fort'},
+    'formattedAddress': 'Karana, Bahrain',
+    'location': {'latitude': 26.2333, 'longitude': 50.5167},
+    'types': ['tourist_attraction'],
+  },
+  {
+    'displayName': {'text': 'Kuwait Towers'},
+    'formattedAddress': 'Kuwait City, Kuwait',
+    'location': {'latitude': 29.3891, 'longitude': 48.0044},
+    'types': ['tourist_attraction'],
+  },
+];
+
 class _SearchPageState extends State<SearchPage> {
   final TextEditingController _controller = TextEditingController();
   Timer? _filterDebounce;
+  Timer? _autocompleteDebounce;
   Timer? _notificationTimer;
 
   List<String> selectedFilters = [];
@@ -38,9 +92,19 @@ class _SearchPageState extends State<SearchPage> {
   int? _placesMemoKey;
   List<Map<String, dynamic>> _placesMemoList = const [];
 
+  List<Map<String, dynamic>> _autocompleteRows = [];
+  bool _autocompleteLoading = false;
+  int _autocompleteRequestId = 0;
+  String? _autocompleteSessionToken;
+
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<TravelProvider>().sanitizeUserFacingLists();
+    });
 
     _notificationTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) {
@@ -52,9 +116,97 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void dispose() {
     _filterDebounce?.cancel();
+    _autocompleteDebounce?.cancel();
     _notificationTimer?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onSearchFieldChanged(String value) {
+    _filterDebounce?.cancel();
+    _filterDebounce = Timer(const Duration(milliseconds: 320), () {
+      if (mounted) setState(() {});
+    });
+
+    final t = value.trim();
+
+    if (t.isEmpty) {
+      _autocompleteDebounce?.cancel();
+      _autocompleteSessionToken = null;
+      _lastSubmittedQueryKey = '';
+      _autocompleteRequestId++;
+      if (_autocompleteRows.isNotEmpty || _autocompleteLoading) {
+        setState(() {
+          _autocompleteRows = [];
+          _autocompleteLoading = false;
+        });
+      }
+      context.read<TravelProvider>().clearSearchResults();
+      return;
+    }
+
+    if (t.length < 3) {
+      _autocompleteDebounce?.cancel();
+      _autocompleteSessionToken = null;
+      _autocompleteRequestId++;
+      if (_autocompleteRows.isNotEmpty || _autocompleteLoading) {
+        setState(() {
+          _autocompleteRows = [];
+          _autocompleteLoading = false;
+        });
+      }
+      return;
+    }
+
+    _autocompleteSessionToken ??=
+        TravelProvider.generateAutocompleteSessionToken();
+
+    _autocompleteDebounce?.cancel();
+    _autocompleteDebounce = Timer(const Duration(milliseconds: 650), () async {
+      final rq = ++_autocompleteRequestId;
+
+      if (!mounted) return;
+
+      setState(() => _autocompleteLoading = true);
+
+      final travel = context.read<TravelProvider>();
+      final lang = Localizations.localeOf(context).languageCode;
+
+      final rows = await travel.searchPageAutocompleteSuggestions(
+        query: t,
+        sessionToken: _autocompleteSessionToken!,
+        languageCode: lang,
+      );
+
+      if (!mounted || rq != _autocompleteRequestId) return;
+
+      setState(() {
+        _autocompleteRows = rows;
+        _autocompleteLoading = false;
+      });
+    });
+  }
+
+  Future<void> _onAutocompletePick(Map<String, dynamic> row) async {
+    final text = row['suggestionText']?.toString().trim() ?? '';
+
+    if (text.isEmpty) return;
+
+    _autocompleteDebounce?.cancel();
+    _autocompleteRows = [];
+    _autocompleteSessionToken = null;
+    _autocompleteLoading = false;
+
+    _controller.text = text;
+    _lastSubmittedQueryKey = text.toLowerCase();
+
+    if (!mounted) return;
+    setState(() {});
+
+    await context.read<TravelProvider>().search(text);
+
+    if (!mounted) return;
+    setState(() {});
   }
 
   List<Map<String, dynamic>> _memoizedFilteredPlaces({
@@ -64,7 +216,7 @@ class _SearchPageState extends State<SearchPage> {
   }) {
     final List<dynamic> searchSource;
     if (q.isEmpty) {
-      searchSource = travel.homePlaces;
+      searchSource = const <dynamic>[];
     } else if (qKey == _lastSubmittedQueryKey) {
       searchSource = travel.searchPlaces;
     } else {
@@ -82,12 +234,18 @@ class _SearchPageState extends State<SearchPage> {
     if (_placesMemoKey == memoKey) return _placesMemoList;
 
     _placesMemoKey = memoKey;
-    _placesMemoList = travel.filteredPlaces(
-      query: q,
+    final filterQuery = (qKey == _lastSubmittedQueryKey && searchSource.isNotEmpty)
+        ? ''
+        : q;
+    final raw = travel.filteredPlaces(
+      query: filterQuery,
       filters: selectedFilters,
       maxPrice: null,
       sourceOverride: searchSource,
     );
+    _placesMemoList = raw
+        .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
+        .toList();
     return _placesMemoList;
   }
 
@@ -108,11 +266,18 @@ class _SearchPageState extends State<SearchPage> {
     final waitingForSubmit =
         q.isNotEmpty && qKey != _lastSubmittedQueryKey;
     final showSearchLoading =
-        travel.loading && q.isNotEmpty && qKey == _lastSubmittedQueryKey;
+        travel.searchLoading && q.isNotEmpty && qKey == _lastSubmittedQueryKey;
 
     final theme = Theme.of(context);
     final accentColor = theme.colorScheme.primary;
     final cardFill = theme.cardTheme.color ?? theme.colorScheme.surface;
+
+    final safeSearchHistory = travel.searchHistory
+        .where((s) => !InvalidPlaceText.isInvalid(s))
+        .toList();
+    final safeRecentlyViewed = travel.recentlyViewed
+        .where((p) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(p))
+        .toList();
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -223,7 +388,10 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    context.tr('gcc_explorer_tagline'),
+                    auth.locationText != null &&
+                            auth.locationText!.trim().isNotEmpty
+                        ? auth.locationText!.trim()
+                        : context.tr('browse_near_location_fallback'),
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 16,
@@ -265,17 +433,13 @@ class _SearchPageState extends State<SearchPage> {
                         ),
                       ),
                       style: TextStyle(color: theme.colorScheme.onSurface),
-                      onChanged: (_) {
-                        _filterDebounce?.cancel();
-                        _filterDebounce = Timer(
-                          const Duration(milliseconds: 320),
-                          () {
-                            if (mounted) setState(() {});
-                          },
-                        );
-                      },
+                      onChanged: _onSearchFieldChanged,
                       onSubmitted: (value) async {
                         _filterDebounce?.cancel();
+                        _autocompleteDebounce?.cancel();
+                        _autocompleteRows = [];
+                        _autocompleteSessionToken = null;
+                        _autocompleteLoading = false;
                         final submitted = value.trim();
                         _lastSubmittedQueryKey = submitted.toLowerCase();
                         if (!mounted) return;
@@ -294,6 +458,68 @@ class _SearchPageState extends State<SearchPage> {
               ),
             ),
           ),
+          if (travel.searchError != null && travel.searchError!.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  context.tr(travel.searchError!),
+                  style: TextStyle(
+                    color: Colors.red.shade700,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+          if (_autocompleteLoading)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Center(
+                  child: SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+            ),
+          if (!_autocompleteLoading && _autocompleteRows.isNotEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Material(
+                  color: cardFill,
+                  borderRadius: BorderRadius.circular(12),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _autocompleteRows.length,
+                    separatorBuilder: (_, __) => Divider(
+                      height: 1,
+                      color: theme.dividerColor.withValues(alpha: 0.35),
+                    ),
+                    itemBuilder: (context, i) {
+                      final row = _autocompleteRows[i];
+                      final title =
+                          row['suggestionText']?.toString() ?? '';
+                      return ListTile(
+                        dense: true,
+                        title: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        onTap: () => _onAutocompletePick(row),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
           SliverToBoxAdapter(
             child: Text(
@@ -307,9 +533,13 @@ class _SearchPageState extends State<SearchPage> {
               spacing: 10,
               runSpacing: 10,
               children: [
-                for (final item in travel.searchHistory)
+                for (final item in safeSearchHistory)
                   GestureDetector(
                     onTap: () async {
+                      _autocompleteDebounce?.cancel();
+                      _autocompleteRows = [];
+                      _autocompleteSessionToken = null;
+                      _autocompleteLoading = false;
                       _controller.text = item;
                       _lastSubmittedQueryKey = item.trim().toLowerCase();
                       if (!mounted) return;
@@ -320,13 +550,24 @@ class _SearchPageState extends State<SearchPage> {
                     },
                     child: _chip(context, item),
                   ),
-                if (travel.searchHistory.isEmpty)
-                  ...travel.homePlaces
-                      .take(5)
-                      .map(
-                        (e) => travel.placeName(e as Map<String, dynamic>),
-                      )
-                      .map((label) => _chip(context, label)),
+                if (safeSearchHistory.isEmpty)
+                  for (final label in _defaultGccSearchChips.take(5))
+                    GestureDetector(
+                      onTap: () async {
+                        _autocompleteDebounce?.cancel();
+                        _autocompleteRows = [];
+                        _autocompleteSessionToken = null;
+                        _autocompleteLoading = false;
+                        _controller.text = label;
+                        _lastSubmittedQueryKey = label.trim().toLowerCase();
+                        if (!mounted) return;
+                        setState(() {});
+                        await context.read<TravelProvider>().search(label);
+                        if (!mounted) return;
+                        setState(() {});
+                      },
+                      child: _chip(context, label),
+                    ),
               ],
             ),
           ),
@@ -338,35 +579,37 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          if (travel.recentlyViewed.isEmpty)
+          if (safeRecentlyViewed.isEmpty)
             SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  final place = travel.homePlaces[index];
+                  final place = _popularGccSpotlightPlaces[index];
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _placeRow(
                       context,
-                      Map<String, dynamic>.from(place as Map),
+                      Map<String, dynamic>.from(place),
                     ),
                   );
                 },
-                childCount: travel.homePlaces.length >= 2 ? 2 : travel.homePlaces.length,
+                childCount: _popularGccSpotlightPlaces.length >= 2
+                    ? 2
+                    : _popularGccSpotlightPlaces.length,
               ),
             )
           else
             SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) {
-                  final place = travel.recentlyViewed[index];
+                  final place = safeRecentlyViewed[index];
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: _placeRow(context, place),
                   );
                 },
-                childCount: travel.recentlyViewed.length >= 3
+                childCount: safeRecentlyViewed.length >= 3
                     ? 3
-                    : travel.recentlyViewed.length,
+                    : safeRecentlyViewed.length,
               ),
             ),
           const SliverToBoxAdapter(child: SizedBox(height: 12)),
@@ -382,10 +625,10 @@ class _SearchPageState extends State<SearchPage> {
               height: 190,
               child: ListView(
                 scrollDirection: Axis.horizontal,
-                children: travel.homePlaces.take(6).map((place) {
+                children: _popularGccSpotlightPlaces.take(6).map((place) {
                   return _popularCard(
                     context,
-                    Map<String, dynamic>.from(place as Map),
+                    Map<String, dynamic>.from(place),
                   );
                 }).toList(),
               ),
@@ -399,7 +642,9 @@ class _SearchPageState extends State<SearchPage> {
             ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          if (waitingForSubmit)
+          if (q.isEmpty)
+            const SliverToBoxAdapter(child: SizedBox(height: 4))
+          else if (waitingForSubmit)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 20),
