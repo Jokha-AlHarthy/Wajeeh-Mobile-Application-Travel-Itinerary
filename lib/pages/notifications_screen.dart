@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'user_feedback_screen.dart';
 import '../localization/app_localizations.dart';
+import 'dart:async';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -13,6 +14,7 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   final user = FirebaseAuth.instance.currentUser;
+  Timer? _timer;
 
   String _formatTime(dynamic timestamp) {
     if (timestamp == null) return "";
@@ -24,6 +26,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     } catch (_) {
       return "";
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
   }
 
   Future<void> _markAllAsRead() async {
@@ -59,8 +78,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isArabic = Localizations.localeOf(context).languageCode == 'ar';
-
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
@@ -98,11 +115,28 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                               .where("isRead", isEqualTo: false)
                               .snapshots(),
                           builder: (context, snapshot) {
-                            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                            if (!snapshot.hasData) {
                               return const SizedBox();
                             }
 
-                            final count = snapshot.data!.docs.length;
+                            final now = DateTime.now();
+
+                            final count = snapshot.data!.docs.where((doc) {
+                              final data = doc.data() as Map<String, dynamic>;
+                              final scheduledAt = data["scheduledAt"];
+
+                              if (scheduledAt == null) return true;
+
+                              if (scheduledAt is Timestamp) {
+                                return !scheduledAt.toDate().isAfter(now);
+                              }
+
+                              return true;
+                            }).length;
+
+                            if (count == 0) {
+                              return const SizedBox();
+                            }
 
                             return Container(
                               width: 18,
@@ -196,7 +230,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     );
                   }
 
-                  final docs = snapshot.data!.docs;
+                  final now = DateTime.now();
+
+                  final docs = snapshot.data!.docs.where((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final scheduledAt = data["scheduledAt"];
+
+                    if (scheduledAt == null) return true;
+
+                    if (scheduledAt is Timestamp) {
+                      return !scheduledAt.toDate().isAfter(now);
+                    }
+
+                    return true;
+                  }).toList();
+
+                  if (docs.isEmpty) {
+                    return Center(
+                      child: Text(
+                        context.tr("no_notifications"),
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface,
+                          fontSize: 16,
+                        ),
+                      ),
+                    );
+                  }
 
                   return ListView.separated(
                     padding: const EdgeInsets.symmetric(
