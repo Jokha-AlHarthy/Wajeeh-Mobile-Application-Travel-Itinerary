@@ -583,5 +583,9 @@
   "pdf_save_cancelled": "تم إلغاء الحفظ",
   "pdf_share_pick_destination": "اختر مكان الحفظ: من قائمة المشاركة اختر الملفات أو Drive أو التنزيلات",
   "gmail_open_failed": "تعذّر فتح Gmail. ثبّت تطبيق Gmail أو تأكّد أنه مفعّل.",
-  "give_feedback": "إرسال الملاحظات"
+  "give_feedback": "إرسال الملاحظات",
+  "view_trip_details": "عرض تفاصيل الرحلة",
+  "trip_not_found": "لم يتم العثور على الرحلة",
+  "trip_plan_saved_with_details": "تم حفظ رحلة \"{tripName}\" بنجاح. تبدأ بتاريخ {startDate} وتنتهي بتاريخ {endDate}.",
+  "your_trip": "رحلتك"
 }
