@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -18,6 +19,7 @@ class TripPlanScreen extends StatefulWidget {
 }
 
 class _TripPlanScreenState extends State<TripPlanScreen> {
+  Timer? _notificationTimer;
   DateTime? _startDate;
   DateTime? _endDate;
   bool _showItinerary = false;
@@ -38,6 +40,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
 
   @override
   void dispose() {
+    _notificationTimer?.cancel();
     _tripNameController.dispose();
     super.dispose();
   }
@@ -45,6 +48,12 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
   @override
   void initState() {
     super.initState();
+
+    _notificationTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -138,9 +147,9 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
       if (!mounted) return;
 
       context.read<TravelProvider>().updateTripPlanDraftDates(
-            _startDate,
-            _endDate,
-          );
+        _startDate,
+        _endDate,
+      );
 
       final walkthrough = ItineraryWalkthroughController.instance;
       walkthrough.onDatesSelected(
@@ -185,9 +194,9 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
       if (!mounted) return;
 
       context.read<TravelProvider>().updateTripPlanDraftDates(
-            _startDate,
-            _endDate,
-          );
+        _startDate,
+        _endDate,
+      );
 
       final walkthrough = ItineraryWalkthroughController.instance;
       walkthrough.onDatesSelected(
@@ -248,7 +257,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
     Navigator.pushNamedAndRemoveUntil(
       context,
       '/home',
-      (route) => false,
+          (route) => false,
     );
 
     Future.delayed(const Duration(milliseconds: 300), () {
@@ -323,7 +332,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
             Expanded(
               child: SingleChildScrollView(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -425,8 +434,8 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
                           return Column(
                             children: [
                               for (int index = 0;
-                                  index < _tripDays;
-                                  index++) ...[
+                              index < _tripDays;
+                              index++) ...[
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: _buildDayCard(
@@ -503,11 +512,11 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
   }
 
   Widget _buildHeader(
-    BuildContext context, {
-    required Color accentColor,
-    required Color cardColor,
-    required Color titleColor,
-  }) {
+      BuildContext context, {
+        required Color accentColor,
+        required Color cardColor,
+        required Color titleColor,
+      }) {
     return Row(
       children: [
         SizedBox(
@@ -519,7 +528,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
                 final img = (auth.photoUrl != null && auth.photoUrl!.isNotEmpty)
                     ? NetworkImage(auth.photoUrl!)
                     : const AssetImage('images/defaultUserProfile.png')
-                        as ImageProvider;
+                as ImageProvider;
 
                 return CircleAvatar(
                   radius: 22,
@@ -570,12 +579,28 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
                           .snapshots(),
                       builder: (context, snapshot) {
 
-                        if (!snapshot.hasData ||
-                            snapshot.data!.docs.isEmpty) {
+                        if (!snapshot.hasData) {
                           return const SizedBox();
                         }
 
-                        final count = snapshot.data!.docs.length;
+                        final now = DateTime.now();
+
+                        final count = snapshot.data!.docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final scheduledAt = data["scheduledAt"];
+
+                          if (scheduledAt == null) return true;
+
+                          if (scheduledAt is Timestamp) {
+                            return !scheduledAt.toDate().isAfter(now);
+                          }
+
+                          return true;
+                        }).length;
+
+                        if (count == 0) {
+                          return const SizedBox();
+                        }
 
                         return Container(
                           padding: const EdgeInsets.all(3),
@@ -610,12 +635,12 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
   }
 
   Widget _buildDateField(
-    BuildContext context, {
-    Key? key,
-    required String label,
-    required String value,
-    required VoidCallback onTap,
-  }) {
+      BuildContext context, {
+        Key? key,
+        required String label,
+        required String value,
+        required VoidCallback onTap,
+      }) {
     final theme = Theme.of(context);
     final fill = theme.cardTheme.color ?? theme.colorScheme.surface;
     final borderColor = theme.dividerTheme.color ??
@@ -643,41 +668,41 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
             Expanded(
               child: value.isEmpty
                   ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: labelColor,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: labelColor,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          value,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: valueColor,
-                          ),
-                        ),
-                      ],
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: labelColor,
                     ),
+                  ),
+                ],
+              )
+                  : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: labelColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: valueColor,
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(width: 8),
             Icon(Icons.calendar_month, size: 18, color: labelColor),
@@ -688,16 +713,16 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
   }
 
   Widget _buildDayCard(
-    BuildContext context,
-    TravelProvider travel, {
-    required Color dayCardBg,
-    required Color dayCardOnColor,
-    required Color activityChipBg,
-    required Color activityChipFg,
-    required int dayNumber,
-    required String dateText,
-    required List<Map<String, dynamic>> places,
-  }) {
+      BuildContext context,
+      TravelProvider travel, {
+        required Color dayCardBg,
+        required Color dayCardOnColor,
+        required Color activityChipBg,
+        required Color activityChipFg,
+        required int dayNumber,
+        required String dateText,
+        required List<Map<String, dynamic>> places,
+      }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
@@ -755,14 +780,14 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
   }
 
   Widget _buildActivityChip(
-    BuildContext context,
-    TravelProvider travel, {
-    required Color chipBg,
-    required Color chipFg,
-    required int dayNumber,
-    required int index,
-    required Map<String, dynamic> place,
-  }) {
+      BuildContext context,
+      TravelProvider travel, {
+        required Color chipBg,
+        required Color chipFg,
+        required int dayNumber,
+        required int index,
+        required Map<String, dynamic> place,
+      }) {
     final title = travel.placeName(place);
     final lang = Localizations.localeOf(context).languageCode;
     String timeLine;
@@ -828,8 +853,8 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
             onPressed: index == 0
                 ? null
                 : () {
-                    travel.movePlaceInTripDay(dayNumber, index, index - 1);
-                  },
+              travel.movePlaceInTripDay(dayNumber, index, index - 1);
+            },
           ),
           IconButton(
             icon: Icon(Icons.arrow_downward, size: 18, color: chipFg),
@@ -853,11 +878,11 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
   }
 
   Widget _buildBottomButtons(
-    BuildContext context, {
-    required Color primaryColor,
-    required Color destructiveColor,
-    required Color labelColor,
-  }) {
+      BuildContext context, {
+        required Color primaryColor,
+        required Color destructiveColor,
+        required Color labelColor,
+      }) {
     return Row(
       children: [
         Expanded(
@@ -922,10 +947,24 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
                 return;
               }
 
+              final tripId = travel.lastSavedTripId;
+
+              final tripName = _tripNameController.text.trim().isNotEmpty
+                  ? _tripNameController.text.trim()
+                  : context.tr("your_trip");
+
+              final startText = _formatDateField(context, _startDate);
+              final endText = _formatDateField(context, _endDate);
+
               await NotificationService.addNotification(
                 title: context.tr("trip_plan_created"),
-                message: context.tr("trip_plan_saved_successfully"),
+                message: context.tr("trip_plan_saved_with_details", {
+                  "tripName": tripName,
+                  "startDate": startText,
+                  "endDate": endText,
+                }),
                 type: "trip_plan",
+                tripId: tripId,
               );
 
               final now = DateTime.now();
@@ -1005,7 +1044,7 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
               showModalBottomSheet<void>(
                 context: context,
                 backgroundColor:
-                    Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
+                Theme.of(context).cardTheme.color ?? Theme.of(context).colorScheme.surface,
                 shape: const RoundedRectangleBorder(
                   borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
                 ),
