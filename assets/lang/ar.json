@@ -371,6 +371,8 @@
   "error_weak_password": "كلمة المرور ضعيفة جدًا",
   "error_too_many_requests": "محاولات كثيرة. يرجى المحاولة لاحقًا",
   "error_network": "خطأ في الشبكة. تحقق من اتصال الإنترنت",
+  "places_connection_error": "تعذر تحميل الأماكن. يرجى التحقق من الاتصال والمحاولة مرة أخرى.",
+  "browse_near_location_fallback": "اختر موقعك",
   "error_user_disabled": "تم تعطيل هذا الحساب",
   "error_operation_not_allowed": "هذه العملية غير مسموح بها",
   "error_requires_recent_login": "يرجى تسجيل الدخول مرة أخرى للمتابعة",
