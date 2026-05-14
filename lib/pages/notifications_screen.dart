@@ -4,6 +4,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'user_feedback_screen.dart';
 import '../localization/app_localizations.dart';
 import 'dart:async';
+import 'package:provider/provider.dart';
+import '../providers/travel_provider.dart';
+import 'trip_detail_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -273,8 +276,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       final isRead = data["isRead"] ?? false;
                       final createdAt = data["createdAt"];
                       final scheduledAt = data["scheduledAt"];
-                      final displayTime = scheduledAt ?? createdAt;
                       final type = data["type"] ?? "";
+                      final tripId = data["tripId"]?.toString();
+                      final displayTime = type == "trip_plan"
+                          ? createdAt
+                          : (scheduledAt ?? createdAt);
 
                       return Container(
                         width: double.infinity,
@@ -292,13 +298,52 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              title,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                                color: theme.colorScheme.onSurface,
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    title,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: theme.colorScheme.onSurface,
+                                    ),
+                                  ),
+                                ),
+
+                                if (type == "trip_plan" && tripId != null && tripId.isNotEmpty)
+                                  IconButton(
+                                    tooltip: context.tr("view_trip_details"),
+                                    onPressed: () {
+                                      final travel = context.read<TravelProvider>();
+
+                                      final index = travel.savedTrips.indexWhere(
+                                            (t) => t["id"]?.toString() == tripId,
+                                      );
+
+                                      if (index < 0) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text(context.tr("trip_not_found"))),
+                                        );
+                                        return;
+                                      }
+
+                                      final trip = travel.savedTrips[index];
+
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => TripDetailScreen(trip: trip),
+                                        ),
+                                      );
+                                    },
+                                    icon: Icon(
+                                      Icons.open_in_new,
+                                      color: theme.colorScheme.primary,
+                                      size: 22,
+                                    ),
+                                  ),
+                              ],
                             ),
 
                             const SizedBox(height: 6),
