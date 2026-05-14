@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
-
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../localization/app_localizations.dart';
 import '../providers/travel_provider.dart';
+import '../utils/ai_trip_plan_markdown_parser.dart';
+import '../utils/pdf_download.dart';
+import '../utils/trip_detail_shared_text.dart';
+import '../utils/trip_pdf_export.dart';
 import 'notifications_screen.dart';
 import 'rate_screen.dart';
 
@@ -13,9 +17,15 @@ class TripDetailScreen extends StatelessWidget {
   const TripDetailScreen({
     super.key,
     required this.trip,
+    /// Optional day index (0-based) for callers that open a specific day; reserved for future UI.
+    this.initialDayIndex,
+    /// When true, this trip was opened from the user's shared-inbox list (not their own history).
+    this.isSharedInboxEntry = false,
   });
 
   final Map<String, dynamic> trip;
+  final int? initialDayIndex;
+  final bool isSharedInboxEntry;
 
   static const double _leadW = 115;
   static const double _leadH = 95;
@@ -29,71 +39,6 @@ class TripDetailScreen extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final endOnly = DateTime(end.year, end.month, end.day);
     return endOnly.isBefore(today);
-  }
-
-  static DateTime? _tripStartDate(Map<String, dynamic> trip) {
-    final s = trip['startDate']?.toString();
-
-    if (s == null || s.isEmpty) return null;
-
-    return DateTime.tryParse(s);
-  }
-
-  static String _dayTitle(
-    BuildContext context,
-    int dayNumber,
-    String dateStrFromMap,
-    Map<String, dynamic> trip,
-  ) {
-    final start = _tripStartDate(trip);
-
-    if (start != null) {
-      final d = DateTime(start.year, start.month, start.day)
-          .add(Duration(days: dayNumber - 1));
-      final lang = Localizations.localeOf(context).languageCode;
-
-      if (lang == 'ar') {
-        return '${context.tr('day')} $dayNumber: ${DateFormat('EEEE، d MMMM y', 'ar').format(d)}';
-      }
-
-      return '${context.tr('day')} $dayNumber: ${DateFormat('EEEE, MMMM d, y', 'en').format(d)}';
-    }
-
-    return '${context.tr('day')} $dayNumber${dateStrFromMap.isNotEmpty ? ': $dateStrFromMap' : ''}';
-  }
-
-  static String _activityScheduleLabel(
-    BuildContext context,
-    TravelProvider travel,
-    Map<String, dynamic> place,
-    int dayNumber,
-  ) {
-    if (travel.placeIsHotelStayInTrip(place)) {
-      return context.tr('hotel_checkin_day_line', {
-        'day': dayNumber.toString(),
-      });
-    }
-
-    final mins = travel.scheduledTimeMinutesFromTripPlace(place);
-
-    if (mins == null) {
-      return context.tr('schedule_time_pending');
-    }
-
-    final dt = DateTime(2000, 1, 1, mins ~/ 60, mins % 60);
-    final lang = Localizations.localeOf(context).languageCode;
-
-    if (lang == 'ar') {
-      return DateFormat.jm('ar').format(dt);
-    }
-
-    return DateFormat.jm('en').format(dt);
-  }
-
-  static int _minutesForSort(TravelProvider travel, Map<String, dynamic> place) {
-    if (travel.placeIsHotelStayInTrip(place)) return -1;
-
-    return travel.scheduledTimeMinutesFromTripPlace(place) ?? 720;
   }
 
   Widget _tripLeadImage(BuildContext context, String src) {
@@ -192,49 +137,86 @@ class TripDetailScreen extends StatelessWidget {
   }
 
 
-  Widget _activityRow(
+  /// App-style itinerary row: optional category, place title, price on the right,
+  /// date/schedule as subtle caption (no markdown, no bullet columns).
+  Widget _itineraryDetailRow(
     BuildContext context,
-    String activity,
-    String date,
-    String time,
+    TravelProvider travel,
+    Map<String, dynamic> place,
+    String dateStr,
+    int dayNumber,
   ) {
     final theme = Theme.of(context);
-    final cellStyle = theme.textTheme.bodySmall?.copyWith(
-      fontSize: 13,
-      color: theme.colorScheme.onSurface,
+    final scheme = theme.colorScheme;
+    final rawName = travel.placeName(place);
+    final stripped =
+        AiTripPlanMarkdownParser.stripItineraryMarkdownForDisplay(rawName);
+    final row = tripItineraryRowText(
+      context,
+      travel,
+      place,
+      dateStr,
+      dayNumber,
     );
+    final category = row.category.isNotEmpty ? row.category : null;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 5,
-            child: Text(
-              activity,
-              style: cellStyle,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+          if (category != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Text(
+                category,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: scheme.primary,
+                ),
+              ),
             ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  row.activityTitle.isEmpty ? stripped : row.activityTitle,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontSize: 15,
+                    height: 1.35,
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+              if (row.price.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  row.price,
+                  textAlign: TextAlign.right,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurface.withValues(alpha: 0.72),
+                  ),
+                ),
+              ],
+            ],
           ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              date,
-              style: cellStyle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+          if (row.subtitle.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                row.subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontSize: 11.5,
+                  height: 1.3,
+                  color: scheme.onSurface.withValues(alpha: 0.52),
+                ),
+              ),
             ),
-          ),
-          Expanded(
-            flex: 3,
-            child: Text(
-              time,
-              style: cellStyle,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
         ],
       ),
     );
@@ -359,6 +341,27 @@ class TripDetailScreen extends StatelessWidget {
     }
   }
 
+  void _onReuseItineraryPressed(BuildContext context) {
+    final travel = context.read<TravelProvider>();
+    final tripForPlanner = travel.prepareTripSnapshotForPlannerReuse(trip);
+    travel.loadSavedTripIntoPlanner(tripForPlanner);
+    Navigator.pushNamed(
+      context,
+      '/trip_planing',
+      arguments: <String, dynamic>{'trip': tripForPlanner},
+    );
+  }
+
+  void _showShareItineraryDialog(
+    BuildContext context,
+    Map<String, dynamic> tripMap,
+  ) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => _ShareItineraryDialog(trip: tripMap),
+    );
+  }
+
   List<Widget> _buildActivityBlocks(
     BuildContext context,
     TravelProvider travel,
@@ -402,7 +405,7 @@ class TripDetailScreen extends StatelessWidget {
 
       blocks.add(
         Text(
-          _dayTitle(context, dayNumber, dateStr, trip),
+          tripDetailDayTitle(context, dayNumber, dateStr, trip),
           style: theme.textTheme.titleSmall?.copyWith(
             fontWeight: FontWeight.w700,
             fontSize: 15,
@@ -412,6 +415,27 @@ class TripDetailScreen extends StatelessWidget {
       );
       blocks.add(const SizedBox(height: 8));
 
+      if (tripDetailPlacesUseStructuredLayout(places)) {
+        final ordered = List<Map<String, dynamic>>.from(places);
+        ordered.sort(
+          (a, b) => AiTripPlanMarkdownParser.slotOrderForCategoryKey(
+                a['itineraryCategoryKey']?.toString(),
+              )
+              .compareTo(
+                AiTripPlanMarkdownParser.slotOrderForCategoryKey(
+                  b['itineraryCategoryKey']?.toString(),
+                ),
+              ),
+        );
+        for (final place in ordered) {
+          blocks.add(
+            _itineraryDetailRow(context, travel, place, dateStr, dayNumber),
+          );
+        }
+        blocks.add(const SizedBox(height: 12));
+        continue;
+      }
+
       void addSection(String title, List<Map<String, dynamic>> list) {
         if (list.isEmpty) return;
 
@@ -419,19 +443,16 @@ class TripDetailScreen extends StatelessWidget {
           Text(
             title,
             style: theme.textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: theme.colorScheme.primary,
             ),
           ),
         );
 
         for (final place in list) {
           blocks.add(
-            _activityRow(
-              context,
-              travel.placeName(place),
-              dateStr,
-              _activityScheduleLabel(context, travel, place, dayNumber),
-            ),
+            _itineraryDetailRow(context, travel, place, dateStr, dayNumber),
           );
         }
 
@@ -466,7 +487,8 @@ class TripDetailScreen extends StatelessWidget {
       }
 
       timed.sort(
-        (a, b) => _minutesForSort(travel, a).compareTo(_minutesForSort(travel, b)),
+        (a, b) => tripDetailMinutesForSort(travel, a)
+            .compareTo(tripDetailMinutesForSort(travel, b)),
       );
 
       if (hotels.isNotEmpty) {
@@ -490,9 +512,9 @@ class TripDetailScreen extends StatelessWidget {
         }
       }
 
-      addSection("🌅 ${context.tr("morning")}", morning);
-      addSection("🌇 ${context.tr("afternoon")}", afternoon);
-      addSection("🌙 ${context.tr("evening")}", evening);
+      addSection(context.tr('morning'), morning);
+      addSection(context.tr('afternoon'), afternoon);
+      addSection(context.tr('evening'), evening);
 
       blocks.add(const SizedBox(height: 12));
     }
@@ -566,20 +588,62 @@ class TripDetailScreen extends StatelessWidget {
                   PositionedDirectional(
                     end: -1,
                     top: -2,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.error,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Text(
-                        '3',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                    child: StreamBuilder<QuerySnapshot>(
+                      stream: FirebaseFirestore.instance
+                          .collection("notifications")
+                          .where(
+                        "userId",
+                        isEqualTo:
+                        firebase_auth.FirebaseAuth.instance.currentUser?.uid,
+                      )
+                          .where("isRead", isEqualTo: false)
+                          .snapshots(),
+                      builder: (context, snapshot) {
+
+                        if (!snapshot.hasData) {
+                          return const SizedBox();
+                        }
+
+                        final now = DateTime.now();
+
+                        final count = snapshot.data!.docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final scheduledAt = data["scheduledAt"];
+
+                          if (scheduledAt == null) return true;
+
+                          if (scheduledAt is Timestamp) {
+                            return !scheduledAt.toDate().isAfter(now);
+                          }
+
+                          return true;
+                        }).length;
+
+                        if (count == 0) {
+                          return const SizedBox();
+                        }
+
+                        return Container(
+                          padding: const EdgeInsets.all(3),
+                          constraints: const BoxConstraints(
+                            minWidth: 18,
+                            minHeight: 18,
+                          ),
+                          decoration: const BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            count.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -698,6 +762,55 @@ class TripDetailScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
+                      if (isSharedInboxEntry)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 42,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () => _onReuseItineraryPressed(context),
+                            child: Text(
+                              context.tr('reuse_itinerary'),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        )
+                      else if (firebase_auth.FirebaseAuth.instance.currentUser !=
+                          null)
+                        SizedBox(
+                          width: double.infinity,
+                          height: 42,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              elevation: 0,
+                              backgroundColor: theme.colorScheme.primary,
+                              foregroundColor: theme.colorScheme.onPrimary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            onPressed: () =>
+                                _showShareItineraryDialog(context, trip),
+                            child: Text(
+                              context.tr('share_itinerary'),
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 8),
                       Divider(
                         height: 1,
                         color: theme.dividerTheme.color ?? borderColor,
@@ -727,14 +840,18 @@ class TripDetailScreen extends StatelessWidget {
                             context,
                             context.tr('download_pdf'),
                             theme.colorScheme.primary,
+                            onPressed: () => _downloadTripPdf(context, trip),
                           ),
-                          const SizedBox(width: 8),
-                          _roundedButton(
-                            context,
-                            context.tr('delete_itinerary'),
-                            theme.colorScheme.error,
-                            onPressed: () => _onDeleteItineraryPressed(context),
-                          ),
+                          if (!isSharedInboxEntry) ...[
+                            const SizedBox(width: 8),
+                            _roundedButton(
+                              context,
+                              context.tr('delete_itinerary'),
+                              theme.colorScheme.error,
+                              onPressed: () =>
+                                  _onDeleteItineraryPressed(context),
+                            ),
+                          ],
                         ],
                       ),
                     ],
@@ -775,5 +892,211 @@ class TripDetailScreen extends StatelessWidget {
       ),
       bottomNavigationBar: const AppFooter(currentIndex: 1),
     );
+  }
+}
+
+class _ShareItineraryDialog extends StatefulWidget {
+  const _ShareItineraryDialog({required this.trip});
+
+  final Map<String, dynamic> trip;
+
+  @override
+  State<_ShareItineraryDialog> createState() => _ShareItineraryDialogState();
+}
+
+class _ShareItineraryDialogState extends State<_ShareItineraryDialog> {
+  final TextEditingController _emailCtrl = TextEditingController();
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onSharePressed() async {
+    if (_saving) return;
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('share_invalid_email'))),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    final travel = context.read<TravelProvider>();
+    final err =
+        await travel.shareItineraryWithUserByEmail(email, widget.trip);
+
+    if (!mounted) return;
+    setState(() => _saving = false);
+
+    if (err == null) {
+      final messenger = ScaffoldMessenger.of(context);
+      final msg = context.tr('share_itinerary_success');
+      Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text(msg)));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr(err))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: Text(context.tr('share_itinerary_dialog_title')),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              context.tr('share_itinerary_dialog_body'),
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              autocorrect: false,
+              decoration: InputDecoration(
+                labelText: context.tr('email'),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 42,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE53935),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: _saving ? null : () => Navigator.pop(context),
+                  child: Text(
+                    context.tr('cancel'),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: SizedBox(
+                height: 42,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F1B35),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: _saving ? null : _onSharePressed,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          context.tr('share_itinerary_dialog_share'),
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+Future<void> _downloadTripPdf(
+  BuildContext context,
+  Map<String, dynamic> trip,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final travel = context.read<TravelProvider>();
+
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      content: Row(
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 12),
+          Expanded(child: Text(ctx.tr('download_pdf'))),
+        ],
+      ),
+    ),
+  );
+
+  try {
+    final bytes = await buildTripDetailPdfBytes(
+      context: context,
+      travel: travel,
+      trip: trip,
+    );
+    final loc = travel.historyLocationLinesForTrip(trip);
+    final tripName = trip['tripName']?.toString().trim() ?? '';
+    final base =
+        tripName.isNotEmpty ? tripName : (loc['cities'] ?? 'trip_itinerary');
+
+    final outcome = await savePdfToDevice(base, bytes);
+
+    if (!context.mounted) return;
+    switch (outcome) {
+      case PdfSaveOutcome.savedToChosenPath:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_saved'))),
+        );
+        break;
+      case PdfSaveOutcome.cancelledByUser:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_save_cancelled'))),
+        );
+        break;
+      case PdfSaveOutcome.presentedShareSheet:
+        messenger.showSnackBar(
+          SnackBar(content: Text(context.tr('pdf_share_pick_destination'))),
+        );
+        break;
+    }
+  } catch (_) {
+    if (context.mounted) {
+      messenger.showSnackBar(
+        SnackBar(content: Text(context.tr('pdf_save_failed'))),
+      );
+    }
+  } finally {
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop();
+    }
   }
 }
