@@ -272,6 +272,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       final message = data["message"] ?? "";
                       final isRead = data["isRead"] ?? false;
                       final createdAt = data["createdAt"];
+                      final scheduledAt = data["scheduledAt"];
+                      final displayTime = scheduledAt ?? createdAt;
                       final type = data["type"] ?? "";
 
                       return Container(
@@ -302,7 +304,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                             const SizedBox(height: 6),
 
                             Text(
-                              _formatTime(createdAt),
+                              _formatTime(displayTime),
                               style: TextStyle(
                                 color: theme.textTheme.bodySmall?.color ??
                                     theme.colorScheme.onSurface
