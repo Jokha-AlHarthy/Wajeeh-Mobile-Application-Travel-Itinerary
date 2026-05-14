@@ -10,6 +10,7 @@ import '../widgets/app_footer.dart';
 import '../widgets/completed_trip_date_row.dart';
 import 'notifications_screen.dart';
 import 'trip_detail_screen.dart';
+import 'dart:async';
 
 class TripHistory extends StatefulWidget {
   const TripHistory({super.key});
@@ -19,6 +20,24 @@ class TripHistory extends StatefulWidget {
 }
 
 class _TripHistoryState extends State<TripHistory> {
+  Timer? _notificationTimer;
+  @override
+  void initState() {
+    super.initState();
+
+    _notificationTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _notificationTimer?.cancel();
+    super.dispose();
+  }
+
   void _openTripPlanForEdit(
     BuildContext context,
     Map<String, dynamic> trip,
@@ -108,12 +127,28 @@ class _TripHistoryState extends State<TripHistory> {
                           .snapshots(),
                       builder: (context, snapshot) {
 
-                        if (!snapshot.hasData ||
-                            snapshot.data!.docs.isEmpty) {
+                        if (!snapshot.hasData) {
                           return const SizedBox();
                         }
 
-                        final count = snapshot.data!.docs.length;
+                        final now = DateTime.now();
+
+                        final count = snapshot.data!.docs.where((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final scheduledAt = data["scheduledAt"];
+
+                          if (scheduledAt == null) return true;
+
+                          if (scheduledAt is Timestamp) {
+                            return !scheduledAt.toDate().isAfter(now);
+                          }
+
+                          return true;
+                        }).length;
+
+                        if (count == 0) {
+                          return const SizedBox();
+                        }
 
                         return Container(
                           padding: const EdgeInsets.all(3),
