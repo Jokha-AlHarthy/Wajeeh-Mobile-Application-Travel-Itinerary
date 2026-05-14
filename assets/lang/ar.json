@@ -565,5 +565,6 @@
   "pdf_save_failed": "تعذّر حفظ ملف PDF",
   "pdf_save_cancelled": "تم إلغاء الحفظ",
   "pdf_share_pick_destination": "اختر مكان الحفظ: من قائمة المشاركة اختر الملفات أو Drive أو التنزيلات",
-  "gmail_open_failed": "تعذّر فتح Gmail. ثبّت تطبيق Gmail أو تأكّد أنه مفعّل."
+  "gmail_open_failed": "تعذّر فتح Gmail. ثبّت تطبيق Gmail أو تأكّد أنه مفعّل.",
+  "give_feedback": "إرسال الملاحظات"
 }
