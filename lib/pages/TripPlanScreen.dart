@@ -65,9 +65,10 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
           Map<String, dynamic>.from(args['trip'] as Map),
           listIndex: args['index'] is int ? args['index'] as int : null,
         );
-      } else {
-        travel.clearEditingSavedTripTarget();
       }
+      // Intentionally do NOT call clearEditingSavedTripTarget() when args lack `trip`:
+      // flows like add-place use pushNamedAndRemoveUntil without trip arguments while
+      // _editingSavedTripId (and draft editingTripId) must stay set for save to update.
 
       final wantsWalkthrough =
           args is Map && args['startWalkthrough'] == true;
