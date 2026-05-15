@@ -42,6 +42,8 @@ class AuthService {
         "coverUrl": "",
         "isDefaultPhoto": true,
         "isDefaultCover": true,
+        "preferencePromptShown": false,
+        "hasCompletedPreferences": false,
       }, SetOptions(merge: true));
     }
     return user;
@@ -104,6 +106,8 @@ class AuthService {
       "coverUrl": "",
       "isDefaultPhoto": true,
       "isDefaultCover": true,
+      "preferencePromptShown": false,
+      "hasCompletedPreferences": false,
     }, SetOptions(merge: true));
 
     return user;
@@ -158,6 +162,8 @@ class AuthService {
       "coverUrl": "",
       "isDefaultPhoto": user.photoURL == null || user.photoURL!.isEmpty,
       "isDefaultCover": true,
+      "preferencePromptShown": false,
+      "hasCompletedPreferences": false,
     }, SetOptions(merge: true));
 
     return user;
