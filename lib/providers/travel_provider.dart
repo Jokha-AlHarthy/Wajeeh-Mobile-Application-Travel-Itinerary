@@ -2692,6 +2692,9 @@ class TravelProvider extends ChangeNotifier {
         ]);
 
       default:
+        if (interestKey.startsWith('filter_')) {
+          return _matchesCategory(place, interestKey);
+        }
         return false;
     }
   }
