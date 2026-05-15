@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 
+import '../constants/place_category_options.dart';
 import '../localization/app_localizations.dart';
 import '../providers/auth_provider.dart';
 
@@ -19,9 +20,6 @@ class _MyPreferencePageState extends State<MyPreferencePage> {
   List<String> selectedTripTypes = [];
   List<String> selectedInterests = [];
 
-  List<String> interestsFromFirestore = [];
-  bool interestsLoading = true;
-
   final List<Map<String, String>> countries = [
     {"code": "OM", "image": "images/oman.png"},
     {"code": "QA", "image": "images/qatar.png"},
@@ -34,33 +32,15 @@ class _MyPreferencePageState extends State<MyPreferencePage> {
   @override
   void initState() {
     super.initState();
-    loadInterestsFromFirestore();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadSavedInterests());
   }
 
-  Future<void> loadInterestsFromFirestore() async {
-    try {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('content')
-          .doc('data')
-          .collection('interests')
-          .get();
-
-      final loaded = snapshot.docs
-          .map((doc) => (doc.data()['name'] ?? '').toString().trim())
-          .where((e) => e.isNotEmpty)
-          .toList();
-
-      if (!mounted) return;
-      setState(() {
-        interestsFromFirestore = loaded;
-        interestsLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        interestsLoading = false;
-      });
-    }
+  void _loadSavedInterests() {
+    final saved = context.read<AuthProvider>().preferredInterests;
+    if (saved.isEmpty || !mounted) return;
+    setState(() {
+      selectedInterests = List<String>.from(saved);
+    });
   }
 
   void toggleCountry(String code) {
@@ -91,18 +71,17 @@ class _MyPreferencePageState extends State<MyPreferencePage> {
         'year': DateTime.now().year,
         'budget': selectedBudget,
         'tripType': selectedTripTypes,
-        'interest': selectedInterests,
+        'interest': normalizePreferenceInterestKeys(selectedInterests),
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
 
-    await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
-      {'preferredInterests': selectedInterests},
-      SetOptions(merge: true),
-    );
+    final interestKeys =
+        normalizePreferenceInterestKeys(selectedInterests);
 
-    if (!mounted) return;
-    await context.read<AuthProvider>().loadUserProfile();
+    await context.read<AuthProvider>().markPreferencesCompleted(
+          interestKeys: interestKeys,
+        );
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -114,13 +93,6 @@ class _MyPreferencePageState extends State<MyPreferencePage> {
   }
 
   void openInterestDropdown() {
-    if (interestsFromFirestore.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.tr("no_data_available"))),
-      );
-      return;
-    }
-
     showDialog(
       context: context,
       builder: (context) {
@@ -130,18 +102,18 @@ class _MyPreferencePageState extends State<MyPreferencePage> {
               title: Text(context.tr("select_interests")),
               content: SingleChildScrollView(
                 child: Column(
-                  children: interestsFromFirestore.map((interest) {
-                    final isSelected = selectedInterests.contains(interest);
+                  children: placeCategoryFilterKeys.map((key) {
+                    final isSelected = selectedInterests.contains(key);
 
                     return CheckboxListTile(
                       value: isSelected,
-                      title: Text(interest),
+                      title: Text(context.tr(key)),
                       onChanged: (val) {
                         setState(() {
                           if (isSelected) {
-                            selectedInterests.remove(interest);
+                            selectedInterests.remove(key);
                           } else {
-                            selectedInterests.add(interest);
+                            selectedInterests.add(key);
                           }
                         });
 
@@ -293,7 +265,7 @@ class _MyPreferencePageState extends State<MyPreferencePage> {
                   ),
                   const SizedBox(height: 15),
                   GestureDetector(
-                    onTap: interestsLoading ? null : openInterestDropdown,
+                    onTap: openInterestDropdown,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         vertical: 16,
@@ -312,11 +284,11 @@ class _MyPreferencePageState extends State<MyPreferencePage> {
                         children: [
                           Expanded(
                             child: Text(
-                              interestsLoading
-                                  ? context.tr("loading")
-                                  : selectedInterests.isEmpty
+                              selectedInterests.isEmpty
                                   ? context.tr("interest")
-                                  : selectedInterests.join(", "),
+                                  : selectedInterests
+                                      .map((k) => context.tr(k))
+                                      .join(", "),
                               style: const TextStyle(
                                 color: Color(0xFF1A2B49),
                               ),
