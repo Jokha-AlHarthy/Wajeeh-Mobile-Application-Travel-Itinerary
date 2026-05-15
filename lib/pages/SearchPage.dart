@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../localization/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/travel_provider.dart';
+import '../constants/place_category_options.dart';
 import '../utils/invalid_place_text.dart';
 import 'DisplayResultScreen.dart';
 
@@ -15,15 +16,6 @@ class SearchPage extends StatefulWidget {
   @override
   State<SearchPage> createState() => _SearchPageState();
 }
-
-/// Category chips only (aligned with home / trip packages).
-const List<String> _placeCategoryFilterKeys = [
-  'filter_culture_heritage',
-  'filter_transportation',
-  'filter_shopping_souvenirs',
-  'filter_hotels_stays',
-  'filter_food_restaurants',
-];
 
 /// GCC-only quick chips when there is no personal search history (never uses Home data).
 const List<String> _defaultGccSearchChips = [
@@ -759,7 +751,7 @@ class _SearchPageState extends State<SearchPage> {
                   Wrap(
                     spacing: 10,
                     runSpacing: 12,
-                    children: _placeCategoryFilterKeys.map((key) {
+                    children: placeCategoryFilterKeys.map((key) {
                       final isSelected = tempFilters.contains(key);
 
                       return GestureDetector(
