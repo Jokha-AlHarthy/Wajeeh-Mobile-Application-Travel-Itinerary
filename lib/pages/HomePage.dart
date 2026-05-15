@@ -100,11 +100,23 @@ class _HomePageState extends State<HomePage> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
+        final isDark =
+            Theme.of(dialogContext).brightness == Brightness.dark;
+        const skipBg = Color(0xFFE53935);
+        const setPrefsLightBg = Color(0xFF1A2B49);
+        const setPrefsDarkBg = Color(0xFFF5A623);
+        const white = Color(0xFFFFFFFF);
+        const navy = Color(0xFF1A2B49);
+
         return AlertDialog(
           title: Text(dialogContext.tr('preferences')),
           content: Text(dialogContext.tr('preference_prompt_message')),
           actions: [
             TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: skipBg,
+                foregroundColor: white,
+              ),
               onPressed: () async {
                 await auth.markPreferencePromptSkipped();
                 if (dialogContext.mounted) {
@@ -114,6 +126,11 @@ class _HomePageState extends State<HomePage> {
               child: Text(dialogContext.tr('skip_for_now')),
             ),
             TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor:
+                    isDark ? setPrefsDarkBg : setPrefsLightBg,
+                foregroundColor: isDark ? navy : white,
+              ),
               onPressed: () {
                 Navigator.pop(dialogContext);
                 if (!mounted) return;
