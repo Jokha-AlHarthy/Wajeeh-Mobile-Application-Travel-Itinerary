@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../constants/place_category_options.dart';
 import '../services/auth_service.dart';
 import '../localization/error_mapper.dart';
 
@@ -40,8 +41,13 @@ class AuthProvider extends ChangeNotifier {
   bool isDefaultPhoto = true;
   bool isDefaultCover = true;
 
-  /// Interest keys from My Preference (e.g. `interest_cultural_heritage`), used for home recommendations.
+  /// Place-category filter keys (e.g. `filter_museum`) — aligned with Home filters.
   List<String> preferredInterests = [];
+
+  /// When true, the post-registration preference dialog will not be shown.
+  bool preferencePromptShown = true;
+
+  bool hasCompletedPreferences = false;
 
   Future<List<String>> _interestsFromLatestTrip(String uid) async {
     try {
@@ -360,16 +366,19 @@ class AuthProvider extends ChangeNotifier {
           locationText = null;
         }
 
+        preferencePromptShown = data['preferencePromptShown'] == true;
+        hasCompletedPreferences = data['hasCompletedPreferences'] == true;
+
         preferredInterests = [];
         final pi = data['preferredInterests'];
         if (pi is List) {
-          preferredInterests = pi
-              .map((e) => e.toString())
-              .where((s) => s.isNotEmpty)
-              .toList();
+          preferredInterests = normalizePreferenceInterestKeys(
+            pi.map((e) => e.toString()),
+          );
         }
         if (preferredInterests.isEmpty) {
-          preferredInterests = await _interestsFromLatestTrip(user.uid);
+          final tripInterests = await _interestsFromLatestTrip(user.uid);
+          preferredInterests = normalizePreferenceInterestKeys(tripInterests);
         }
       } else {
         fullName = user.displayName ?? '';
@@ -386,8 +395,12 @@ class AuthProvider extends ChangeNotifier {
         isDefaultCover = true;
 
         locationText = null;
+        preferencePromptShown = true;
+        hasCompletedPreferences = false;
         preferredInterests = [];
-        preferredInterests = await _interestsFromLatestTrip(user.uid);
+        preferredInterests = normalizePreferenceInterestKeys(
+          await _interestsFromLatestTrip(user.uid),
+        );
       }
 
       notifyListeners();
@@ -458,6 +471,44 @@ class AuthProvider extends ChangeNotifier {
     await loadUserProfile();
   }
 
+  bool get shouldShowPreferencePrompt =>
+      !preferencePromptShown && !hasCompletedPreferences;
+
+  Future<void> markPreferencePromptSkipped() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    preferencePromptShown = true;
+    notifyListeners();
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+      {'preferencePromptShown': true},
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> markPreferencesCompleted({
+    required List<String> interestKeys,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final normalized = normalizePreferenceInterestKeys(interestKeys);
+    preferredInterests = normalized;
+    preferencePromptShown = true;
+    hasCompletedPreferences = true;
+    notifyListeners();
+
+    await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+      {
+        'preferredInterests': normalized,
+        'preferencePromptShown': true,
+        'hasCompletedPreferences': true,
+      },
+      SetOptions(merge: true),
+    );
+  }
+
   Future<void> saveLocationWithName(double lat, double lng, String placeName) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception("not-logged-in");
@@ -470,6 +521,11 @@ class AuthProvider extends ChangeNotifier {
         "updatedAt": FieldValue.serverTimestamp(),
       }
     }, SetOptions(merge: true));
+
+    locationText = placeName;
+    latitude = lat;
+    longitude = lng;
+    notifyListeners();
   }
 
   Future<void> saveLocation(double lat, double lng) async {
