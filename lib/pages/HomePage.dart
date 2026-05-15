@@ -7,7 +7,9 @@ import '../providers/travel_provider.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
 import 'package:wajeeh/widgets/place_list_card.dart';
 import 'SearchPage.dart';
+import '../constants/place_category_options.dart';
 import '../services/itinerary_walkthrough.dart';
+import 'my_preference_page.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'dart:async';
 
@@ -33,6 +35,8 @@ class _HomePageState extends State<HomePage> {
   /// Last home city we already requested [TravelProvider.loadHome] for (avoids duplicate calls on unrelated rebuilds).
   String? _lastHomeCitySentToProvider;
 
+  bool _preferencePromptChecked = false;
+
   @override
   void initState() {
     super.initState();
@@ -45,9 +49,10 @@ class _HomePageState extends State<HomePage> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await context.read<AuthProvider>().loadUserProfile();
-      _loadFiltersOnce();
+      await _loadFiltersOnce();
       if (!mounted) return;
       setState(() {});
+      _maybeShowPreferencePrompt();
     });
   }
   @override
@@ -64,15 +69,67 @@ class _HomePageState extends State<HomePage> {
           .collection('filters')
           .get();
       if (!mounted) return;
+      final loaded = snapshot.docs
+          .map((doc) => (doc.data()['name'] ?? '').toString().trim())
+          .where((name) => name.isNotEmpty)
+          .toList();
+      if (!mounted) return;
       setState(() {
-        filterOptions = snapshot.docs
-            .map((doc) => (doc.data()['name'] ?? '').toString().trim())
-            .where((name) => name.isNotEmpty)
-            .toList();
+        filterOptions = loaded.isNotEmpty
+            ? loaded
+            : List<String>.from(placeCategoryFilterKeys);
       });
     } catch (_) {
-      // Keep existing filterOptions on errors (offline, permission, etc.).
+      if (!mounted) return;
+      if (filterOptions.isEmpty) {
+        setState(() {
+          filterOptions = List<String>.from(placeCategoryFilterKeys);
+        });
+      }
     }
+  }
+
+  Future<void> _maybeShowPreferencePrompt() async {
+    if (_preferencePromptChecked || !mounted) return;
+    _preferencePromptChecked = true;
+
+    final auth = context.read<AuthProvider>();
+    if (auth.isAdmin || !auth.shouldShowPreferencePrompt) return;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(dialogContext.tr('preferences')),
+          content: Text(dialogContext.tr('preference_prompt_message')),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await auth.markPreferencePromptSkipped();
+                if (dialogContext.mounted) {
+                  Navigator.pop(dialogContext);
+                }
+              },
+              child: Text(dialogContext.tr('skip_for_now')),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext);
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MyPreferencePage(),
+                  ),
+                );
+              },
+              child: Text(dialogContext.tr('set_preferences')),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _loadPlaces() {
