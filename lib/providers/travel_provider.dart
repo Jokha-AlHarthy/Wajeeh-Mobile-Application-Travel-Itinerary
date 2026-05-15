@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -10,12 +13,316 @@ import '../config/google_keys.dart';
 import '../services/places_service.dart';
 import '../services/price_extraction_service.dart';
 import '../utils/ai_trip_plan_markdown_parser.dart';
+import '../utils/invalid_place_text.dart';
+
+/// Converts Firestore-typed values ([Timestamp], [GeoPoint], …) and strips binary
+/// ([Uint8List], [Blob], [TypedData]) so [jsonEncode] stays small and Firestore writes succeed.
+///
+/// **Important:** [Uint8List] implements [Iterable<int>]. If handled as a generic [Iterable],
+/// each byte becomes a JSON number and the payload can exceed Firestore limits—often seen on
+/// active itineraries (map tiles, thumbnails) while older completed trips are URL-only.
+dynamic _tripDataJsonSafeValue(dynamic value) {
+  if (value == null) return null;
+  if (value is bool || value is String) return value;
+  if (value is num) {
+    if (value.isNaN || value.isInfinite) return null;
+    return value;
+  }
+  if (value is Timestamp) {
+    return value.toDate().toUtc().toIso8601String();
+  }
+  if (value is DateTime) {
+    return value.toUtc().toIso8601String();
+  }
+  if (value is GeoPoint) {
+    return <String, double>{
+      'latitude': value.latitude,
+      'longitude': value.longitude,
+    };
+  }
+  if (value is DocumentReference) {
+    return value.path;
+  }
+  if (value is Blob) {
+    return null;
+  }
+  if (value is VectorValue) {
+    return value.toArray();
+  }
+  if (value is TypedData) {
+    return null;
+  }
+  if (value is Map) {
+    final out = <String, dynamic>{};
+    value.forEach((k, v) {
+      out[k.toString()] = _tripDataJsonSafeValue(v);
+    });
+    return out;
+  }
+  if (value is Iterable) {
+    return value.map(_tripDataJsonSafeValue).toList();
+  }
+  return value.toString();
+}
+
+/// Keys (and key substrings) removed from the **shared copy only** — map, route, and binary.
+bool _sharePayloadKeyIsBanned(String key) {
+  final s = key.toLowerCase();
+
+  const uriKeepers = {'googlemapsuri', 'googlenavigationuri'};
+  if (uriKeepers.contains(s)) return false;
+
+  const exactBan = {
+    'geometry',
+    'bounds',
+    'viewport',
+    'camera',
+    'coordinates',
+    'overview_polyline',
+    'overviewpolyline',
+    'encoded_polyline',
+    'encodedpolyline',
+    'polylines',
+    'polyline',
+    'routes',
+    'routedata',
+    'routepoints',
+    'markers',
+    'markerbitmap',
+    'snapshot',
+    'thumbnail',
+    'thumbnails',
+    'bitmap',
+    'cached',
+    'cache',
+    'geopoint',
+    'geojson',
+    'geohash',
+    'tiles',
+    'tile',
+    'groundoverlay',
+    'vector',
+    'blob',
+    'contentbytes',
+    'photos',
+    'photometadata',
+    'addresscomponents',
+    'adrformataddress',
+    'routesteps',
+    'legs',
+    'navigationendpoint',
+    'daypolylines',
+    'routematrix',
+    'mapview',
+    'mapstyle',
+    'mapdata',
+    'mapcache',
+    'cachedmap',
+    'staticmap',
+    'mapsnapshot',
+    'routeshape',
+    'routeline',
+    'markericon',
+    'markerimage',
+    'markerdata',
+    'polylinepoints',
+    'encodedpath',
+  };
+  if (exactBan.contains(s)) return true;
+
+  if (s.contains('polyline')) return true;
+  if (s.contains('viewport')) return true;
+  if (s.contains('snapshot')) return true;
+  if (s.contains('thumbnail')) return true;
+  if (s.contains('geopoint')) return true;
+  if (s.contains('groundoverlay')) return true;
+  if (s.contains('encodedpolyline')) return true;
+  if (s.contains('markerbitmap')) return true;
+  if (s.contains('staticmap')) return true;
+  if (s.contains('mapsnapshot')) return true;
+  if (s.contains('routedata')) return true;
+  if (s.contains('routepoints')) return true;
+  if (s.contains('routeresponse')) return true;
+  if (s.contains('mapcache')) return true;
+  if (s.contains('cachedmap')) return true;
+
+  if (s == 'map' || s == 'maps') return true;
+  if (s.startsWith('map') && s != 'mapurl') return true;
+  if (s.endsWith('map') && s.length > 3) return true;
+  if (s.contains('_map') || s.contains('map_')) return true;
+
+  if (s == 'route' || s == 'routes') return true;
+  if (s.startsWith('route_') || s.endsWith('_route')) return true;
+  if (s.contains('routepoints')) return true;
+
+  if (s.contains('marker')) {
+    if (s == 'scheduledtimeminutes') return false;
+    if (s.contains('scheduledtime')) return false;
+    if (s.contains('remark')) return false;
+    return true;
+  }
+
+  return false;
+}
+
+dynamic _stripHeavyKeysForShare(
+  dynamic value, {
+  int depth = 0,
+  Set<String>? removedKeys,
+  String path = '',
+}) {
+  if (depth > 80) return null;
+  if (value == null) return null;
+  if (value is TypedData || value is Blob) {
+    removedKeys?.add(path.isEmpty ? '<TypedData>' : path);
+    return null;
+  }
+  if (value is Timestamp) {
+    return value.toDate().toUtc().toIso8601String();
+  }
+  if (value is DateTime) {
+    return value.toUtc().toIso8601String();
+  }
+  if (value is GeoPoint) {
+    return <String, double>{
+      'latitude': value.latitude,
+      'longitude': value.longitude,
+    };
+  }
+  if (value is DocumentReference) {
+    removedKeys?.add(path.isEmpty ? '<DocumentReference>' : path);
+    return null;
+  }
+  if (value is VectorValue) {
+    removedKeys?.add(path.isEmpty ? '<VectorValue>' : path);
+    return null;
+  }
+  if (value is String) {
+    if (value.length > 12000) {
+      removedKeys?.add('$path.<truncated>');
+      return value.substring(0, 12000);
+    }
+    return value;
+  }
+  if (value is num) {
+    if (value.isNaN || value.isInfinite) return null;
+    return value;
+  }
+  if (value is bool) return value;
+
+  if (value is Map) {
+    final out = <String, dynamic>{};
+    for (final e in value.entries) {
+      final k = e.key.toString();
+      final childPath = path.isEmpty ? k : '$path.$k';
+      if (_sharePayloadKeyIsBanned(k)) {
+        removedKeys?.add(childPath);
+        continue;
+      }
+      final v = _stripHeavyKeysForShare(
+        e.value,
+        depth: depth + 1,
+        removedKeys: removedKeys,
+        path: childPath,
+      );
+      if (v != null) {
+        out[k] = v;
+      } else if (e.value is bool) {
+        out[k] = e.value;
+      } else if (e.value is num && e.value == 0) {
+        out[k] = 0;
+      }
+    }
+    return out;
+  }
+
+  if (value is Iterable) {
+    final out = <dynamic>[];
+    var i = 0;
+    for (final e in value) {
+      final childPath = '$path[$i]';
+      i++;
+      final v = _stripHeavyKeysForShare(
+        e,
+        depth: depth + 1,
+        removedKeys: removedKeys,
+        path: childPath,
+      );
+      if (v != null) {
+        out.add(v);
+      } else if (e is Map) {
+        out.add(<String, dynamic>{});
+      } else if (e is Iterable) {
+        out.add(<dynamic>[]);
+      }
+    }
+    return out;
+  }
+
+  return value.toString();
+}
+
+Map<String, dynamic> _buildShareableTripSnapshotForShare(
+  Map<String, dynamic> trip,
+) {
+  final removed = <String>{};
+  if (kDebugMode) {
+    debugPrint(
+      'TravelProvider share snapshot: original top-level keys=${trip.keys.toList()}',
+    );
+  }
+
+  final normalized = _tripDataJsonSafeValue(trip);
+  if (normalized is! Map) {
+    return <String, dynamic>{};
+  }
+
+  final base = Map<String, dynamic>.from(normalized);
+  final stripped = _stripHeavyKeysForShare(
+    base,
+    removedKeys: removed,
+  );
+  if (stripped is! Map) {
+    return <String, dynamic>{};
+  }
+
+  final out = Map<String, dynamic>.from(stripped);
+
+  if (kDebugMode) {
+    debugPrint(
+      'TravelProvider share snapshot: stripped top-level keys=${out.keys.toList()}',
+    );
+    debugPrint(
+      'TravelProvider share snapshot: removed paths (showing up to 60): '
+      '${removed.take(60).join(', ')}${removed.length > 60 ? '…' : ''}',
+    );
+    final enc = jsonEncode(out);
+    debugPrint('TravelProvider share snapshot: final jsonBytes=${enc.length}');
+    for (final k in out.keys) {
+      final piece = jsonEncode(<String, dynamic>{k: out[k]});
+      if (piece.length > 25000) {
+        debugPrint(
+          'TravelProvider share snapshot: LARGE top-level field "$k" '
+          'bytes=${piece.length}',
+        );
+      }
+    }
+  }
+
+  return out;
+}
 
 class TravelProvider extends ChangeNotifier {
   final _api = PlacesService(GoogleKeys.placesKey);
 
   bool loading = false;
   String? error;
+
+  /// Set when [search] fails; kept separate from [error] so a search failure does
+  /// not wipe a home-load error and vice versa.
+  String? searchError;
+
+  bool searchLoading = false;
 
   List<dynamic> homePlaces = [];
 
@@ -34,13 +341,25 @@ class TravelProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// True when the last [loadHome] applied interest-based filtering.
+  /// True when the last [loadHome] applied [userInterestKeys] filtering.
   bool lastHomeLoadFilteredByInterests = false;
 
   List<dynamic> searchPlaces = [];
   List<String> searchHistory = [];
   List<Map<String, dynamic>> recentlyViewed = [];
   List<Map<String, dynamic>> favoritePlaces = [];
+
+  /// Extra places loaded when Home filters match nothing in [homePlaces] (location-scoped).
+  List<dynamic> _homeFilterSupplementPlaces = [];
+
+  bool homeCategoryFallbackLoading = false;
+  String? homeCategoryFallbackErrorKey;
+
+  String? _lastHomeFilterSupplementSignature;
+  int _homeFilterSupplementRequestId = 0;
+
+  final Map<String, List<dynamic>> _homeCategoryTextSearchCache = {};
+  static const int _homeCategoryCacheMaxEntries = 32;
 
   static const _favoritesPrefsKey = 'favorite_places_v1';
   static const _savedTripsPrefsKey = 'saved_trips_v1';
@@ -101,9 +420,17 @@ class TravelProvider extends ChangeNotifier {
 
     favoritePlaces = [];
     savedTrips = [];
+    sharedTrips = [];
     offlineSavedTrips = [];
     searchHistory = [];
     recentlyViewed = [];
+    _searchAutocompleteCache.clear();
+    _searchPlacesSessionCache.clear();
+    _homeCategoryTextSearchCache.clear();
+    _homeFilterSupplementPlaces.clear();
+    _lastHomeFilterSupplementSignature = null;
+    homeCategoryFallbackLoading = false;
+    homeCategoryFallbackErrorKey = null;
     tripPlanStart = null;
     tripPlanEnd = null;
     tripPlanItineraryActive = false;
@@ -142,6 +469,8 @@ class TravelProvider extends ChangeNotifier {
 
   void toggleFavorite(Map<String, dynamic> place) {
     final id = placeFavoriteId(place);
+
+    if (InvalidPlaceText.placeMapContainsErrorLikeStrings(place)) return;
 
     final idx = favoritePlaces.indexWhere((p) => placeFavoriteId(p) == id);
 
@@ -204,6 +533,12 @@ class TravelProvider extends ChangeNotifier {
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+
+      final beforeCt = favoritePlaces.length;
+      favoritePlaces.removeWhere(InvalidPlaceText.placeMapContainsErrorLikeStrings);
+      if (favoritePlaces.length != beforeCt) {
+        unawaited(_persistFavoritesPrefsOnly());
+      }
     } catch (_) {
       favoritePlaces = [];
     }
@@ -265,6 +600,9 @@ class TravelProvider extends ChangeNotifier {
     }
 
     _backfillMissingScheduleTimesInDraft();
+
+    final eId = m['editingTripId']?.toString().trim();
+    _editingSavedTripId = (eId != null && eId.isNotEmpty) ? eId : null;
   }
 
   /// Legacy trips saved before scheduling: assign non-colliding times so save/validate works.
@@ -318,7 +656,9 @@ class TravelProvider extends ChangeNotifier {
 
   void _applyTravelDataFromFirestore(Map<String, dynamic> data) {
     favoritePlaces = _asMapList(data['favoritePlaces']);
+    favoritePlaces.removeWhere(InvalidPlaceText.placeMapContainsErrorLikeStrings);
     savedTrips = _asMapList(data['savedTrips']);
+    sharedTrips = _asMapList(data['sharedTrips']);
     // Offline saved itineraries are intentionally local-only; do not sync to Firestore.
     offlineSavedTrips = [];
 
@@ -347,13 +687,20 @@ class TravelProvider extends ChangeNotifier {
       placesJson[e.key.toString()] = e.value;
     }
 
-    return {
+    final out = <String, dynamic>{
       'start': tripPlanStart?.toIso8601String(),
       'end': tripPlanEnd?.toIso8601String(),
       'itineraryActive': tripPlanItineraryActive,
       'tripName': tripPlanTripName,
       'placesByDay': placesJson,
     };
+
+    final eId = _editingSavedTripId?.trim();
+    if (eId != null && eId.isNotEmpty) {
+      out['editingTripId'] = eId;
+    }
+
+    return out;
   }
 
   Future<void> _pushFullTravelToFirestore() async {
@@ -365,6 +712,7 @@ class TravelProvider extends ChangeNotifier {
       final payload = <String, dynamic>{
         'favoritePlaces': favoritePlaces,
         'savedTrips': savedTrips,
+        'sharedTrips': sharedTrips,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -459,8 +807,6 @@ class TravelProvider extends ChangeNotifier {
 
   /// User-visible trip name (draft + save).
   String tripPlanTripName = '';
-
-  String? lastSavedTripId;
 
   /// When non-null, [saveCurrentItinerary] updates the existing trip with this id.
   String? _editingSavedTripId;
@@ -558,8 +904,11 @@ class TravelProvider extends ChangeNotifier {
     return null;
   }
 
+  /// Manual trip planner: max activities + hotel rows per calendar day.
+  static const int maxManualPlacesPerTripDay = 7;
+
   String? _validateDayPlacesList(List<Map<String, dynamic>> list) {
-    if (list.length > 5) return 'max_places_per_day';
+    if (list.length > maxManualPlacesPerTripDay) return 'max_places_per_day';
 
     final seenIds = <String>{};
 
@@ -571,14 +920,11 @@ class TravelProvider extends ChangeNotifier {
 
     if (list.isEmpty) return null;
 
-    final anchor = list.first;
-    final anchorAddr = placeAddress(anchor);
-    final anchorCity = _extractCity(anchorAddr);
+    final anchorAddr = placeAddress(list.first);
     final anchorCountry = _extractCountryFromAddress(anchorAddr);
 
     for (final p in list.skip(1)) {
       final addr = placeAddress(p);
-      final newCity = _extractCity(addr);
       final newCountry = _extractCountryFromAddress(addr);
 
       if (newCountry.isNotEmpty &&
@@ -586,11 +932,26 @@ class TravelProvider extends ChangeNotifier {
           newCountry.toLowerCase() != anchorCountry.toLowerCase()) {
         return 'different_countries_same_day';
       }
+    }
 
-      if (newCity.isNotEmpty &&
-          anchorCity.isNotEmpty &&
-          newCity.toLowerCase() != anchorCity.toLowerCase()) {
-        return 'different_cities_same_day';
+    String? anchorGov;
+
+    for (final p in list) {
+      final g = _governorateComparableKey(p);
+
+      if (g.isNotEmpty) {
+        anchorGov = g;
+        break;
+      }
+    }
+
+    if (anchorGov == null) return null;
+
+    for (final p in list) {
+      final gov = _governorateComparableKey(p);
+
+      if (gov.isNotEmpty && gov != anchorGov) {
+        return 'different_governorates_same_day';
       }
     }
 
@@ -637,7 +998,7 @@ class TravelProvider extends ChangeNotifier {
       () => <Map<String, dynamic>>[],
     );
 
-    if (list.length >= 5) {
+    if (list.length >= maxManualPlacesPerTripDay) {
       error = 'max_places_per_day';
       notifyListeners();
       return false;
@@ -758,6 +1119,148 @@ class TravelProvider extends ChangeNotifier {
   static const double _gccHighLat = 33.5;
   static const double _gccHighLng = 60.5;
 
+  static const Set<String> _gccCountryCodes = {
+    'OM',
+    'AE',
+    'SA',
+    'QA',
+    'BH',
+    'KW',
+  };
+
+  /// In-memory autocomplete cache for the Search page (session lifetime).
+  final Map<String, List<Map<String, dynamic>>> _searchAutocompleteCache = {};
+
+  /// In-memory Text Search results for the session (normalized query key).
+  final Map<String, List<Map<String, dynamic>>> _searchPlacesSessionCache = {};
+
+  static const int _searchSessionCacheMaxEntries = 36;
+
+  List<String> _popularTripInterestLabelsMem = [];
+  DateTime? _popularTripInterestLabelsFetchedAt;
+  static const Duration _popularTripInterestTtl = Duration(minutes: 45);
+
+  static String generateAutocompleteSessionToken() {
+    const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    final r = Random.secure();
+    return List.generate(32, (_) => chars[r.nextInt(chars.length)]).join();
+  }
+
+  /// Collapses verbose selected autocomplete strings into a concise Text Search query.
+  ///
+  /// Example: "UAE - Dubai - United Arab Emirates" -> "Dubai"
+  static String normalizePlacesSearchQuery(String raw) {
+    var s = raw.trim();
+
+    if (s.isEmpty) return s;
+
+    s = s.replaceAll(RegExp(r'[\t\n\r]+'), ' ');
+    s = s.replaceAll(RegExp(r'[\s\-_,;|]+'), ' ');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    if (s.isEmpty) return raw.trim();
+
+    const noiseTokens = <String>[
+      'united arab emirates',
+      'united arab emirate',
+      'uae',
+      'kingdom of saudi arabia',
+      'kingdom of bahrain',
+      'state of qatar',
+      'state of kuwait',
+      'saudi arabia',
+      'ksa',
+      'bahrain',
+      'qatar',
+      'kuwait',
+      'oman',
+      'gcc',
+      'middle east',
+    ];
+
+    for (final token in noiseTokens) {
+      s = s.replaceAll(
+        RegExp('\\b${RegExp.escape(token)}\\b', caseSensitive: false),
+        ' ',
+      );
+    }
+
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+    if (s.length < 2) return raw.trim();
+
+    return s;
+  }
+
+  static const String searchFailureLocalizationKey = 'places_connection_error';
+
+  /// Shared validation for place titles, addresses, history chips, etc.
+  static bool isInvalidPlaceText(String? text) => InvalidPlaceText.isInvalid(text);
+
+  void _stripInvalidMapsFromDynamicList(List<dynamic> list) {
+    list.removeWhere((e) {
+      if (e is! Map) return true;
+      final m = e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e);
+      return InvalidPlaceText.placeMapContainsErrorLikeStrings(m);
+    });
+  }
+
+  List<Map<String, dynamic>> _stripInvalidPlaceMapsFromList(
+    List<Map<String, dynamic>> items,
+  ) {
+    return items
+        .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
+        .toList();
+  }
+
+  String _searchFailureLocalizationKeyFor(Object e) {
+    if (kDebugMode) {
+      debugPrint('TravelProvider.search failed: $e');
+    }
+
+    return searchFailureLocalizationKey;
+  }
+
+  void _rememberSearchSessionPlaces(String key, List<dynamic> items) {
+    final copy = items
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
+        .toList();
+
+    _searchPlacesSessionCache[key] = copy;
+
+    while (_searchPlacesSessionCache.length > _searchSessionCacheMaxEntries) {
+      final k = _searchPlacesSessionCache.keys.first;
+
+      _searchPlacesSessionCache.remove(k);
+    }
+  }
+
+  String? _countryShortFromPlace(Map<String, dynamic> place) {
+    final raw = place['addressComponents'];
+    if (raw is! List) return null;
+
+    for (final item in raw) {
+      if (item is! Map) continue;
+
+      final types = item['types'];
+
+      if (types is! List) continue;
+
+      final typeStrs = types.map((e) => e.toString()).toList();
+
+      if (!typeStrs.contains('country')) continue;
+
+      final st = item['shortText']?.toString() ?? item['short_name']?.toString();
+
+      if (st != null && st.trim().isNotEmpty) return st.trim().toUpperCase();
+    }
+
+    return null;
+  }
+
   bool _insideGccBox(Map<String, dynamic> place) {
     final loc = place["location"];
 
@@ -777,6 +1280,32 @@ class TravelProvider extends ChangeNotifier {
         lng <= _gccHighLng;
   }
 
+  /// True when the place is in a GCC country (prefer address country code).
+  bool _placeInGcc(Map<String, dynamic> place) {
+    final code = _countryShortFromPlace(place);
+
+    if (code != null && code.isNotEmpty) {
+      return _gccCountryCodes.contains(code);
+    }
+
+    final addr = placeAddress(place).toLowerCase();
+
+    if (addr.contains('oman') ||
+        addr.contains('uae') ||
+        addr.contains('emirates') ||
+        addr.contains('dubai') ||
+        addr.contains('abu dhabi') ||
+        addr.contains('sharjah') ||
+        addr.contains('saudi') ||
+        addr.contains('qatar') ||
+        addr.contains('bahrain') ||
+        addr.contains('kuwait')) {
+      return true;
+    }
+
+    return _insideGccBox(place);
+  }
+
   List<dynamic> _onlyGcc(List<dynamic> items) {
     final out = <dynamic>[];
 
@@ -785,7 +1314,7 @@ class TravelProvider extends ChangeNotifier {
 
       final m = Map<String, dynamic>.from(it);
 
-      if (_insideGccBox(m)) {
+      if (_placeInGcc(m) && !InvalidPlaceText.placeMapContainsErrorLikeStrings(m)) {
         out.add(m);
       }
     }
@@ -798,6 +1327,9 @@ class TravelProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
 
   List<Map<String, dynamic>> savedTrips = [];
+
+  /// Itineraries shared with this user (Firestore `sharedTrips` on travel storage).
+  List<Map<String, dynamic>> sharedTrips = [];
 
   // ---------------------------------------------------------------------------
   // Offline Saved Itinerary (explicit user action from Trip Detail)
@@ -1024,6 +1556,208 @@ class TravelProvider extends ChangeNotifier {
     }
   }
 
+  /// Reloads travel data from Firestore for the current storage scope (e.g. after a share was received).
+  Future<void> refreshTravelFromFirestore() async {
+    if (_isGuestScope) return;
+
+    try {
+      await _loadTravelFromFirestore();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('TravelProvider refreshTravelFromFirestore: $e');
+    }
+  }
+
+  /// Returns a deep copy of [trip] suitable for [loadSavedTripIntoPlanner] so the user saves a new itinerary.
+  Map<String, dynamic> prepareTripSnapshotForPlannerReuse(
+    Map<String, dynamic> trip,
+  ) {
+    try {
+      final sanitized = _tripDataJsonSafeValue(trip);
+      if (sanitized is! Map) return Map<String, dynamic>.from(trip);
+
+      final raw = jsonDecode(jsonEncode(sanitized));
+      if (raw is! Map) return Map<String, dynamic>.from(trip);
+
+      final m = Map<String, dynamic>.from(raw);
+      m.remove('id');
+      m.remove('sharedEntryId');
+      m.remove('sharedByUid');
+      m.remove('sharedByEmail');
+      m.remove('sharedAt');
+      return m;
+    } catch (_) {
+      final m = Map<String, dynamic>.from(trip);
+      m.remove('id');
+      return m;
+    }
+  }
+
+  /// Shares a snapshot of [trip] with the account registered in Firestore under [emailInput].
+  /// Returns `null` on success, or a localization key for an error message.
+  Future<String?> shareItineraryWithUserByEmail(
+    String emailInput,
+    Map<String, dynamic> trip,
+  ) async {
+    if (_isGuestScope) return 'share_requires_login';
+
+    final trimmed = emailInput.trim();
+    if (trimmed.isEmpty || !trimmed.contains('@')) {
+      return 'share_invalid_email';
+    }
+
+    final me = FirebaseAuth.instance.currentUser;
+    if (me == null) return 'share_requires_login';
+
+    final myEmail = me.email?.trim().toLowerCase() ?? '';
+    if (trimmed.toLowerCase() == myEmail) {
+      return 'share_cannot_share_with_self';
+    }
+
+    String? receiverUid;
+
+    final candidates = <String>{trimmed, trimmed.toLowerCase()};
+    for (final candidate in candidates) {
+      if (candidate.isEmpty) continue;
+
+      try {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .where('email', isEqualTo: candidate)
+            .limit(1)
+            .get();
+
+        if (snap.docs.isNotEmpty) {
+          receiverUid = snap.docs.first.id;
+          break;
+        }
+      } catch (e) {
+        debugPrint('TravelProvider shareItinerary lookup: $e');
+        return 'share_failed';
+      }
+    }
+
+    if (receiverUid == null || receiverUid.isEmpty) {
+      return 'share_user_not_found';
+    }
+
+    if (receiverUid == me.uid) return 'share_cannot_share_with_self';
+
+    final statusKey = trip['statusKey']?.toString();
+    final tripId = trip['id']?.toString();
+    final endDate = trip['endDate']?.toString();
+    if (kDebugMode) {
+      debugPrint(
+        'TravelProvider share: start statusKey=$statusKey id=$tripId endDate=$endDate '
+        'receiver=$receiverUid email=$trimmed',
+      );
+    }
+
+    Map<String, dynamic> tripCopy;
+
+    try {
+      final snapshot = _buildShareableTripSnapshotForShare(
+        Map<String, dynamic>.from(trip),
+      );
+      if (snapshot.isEmpty) {
+        debugPrint('TravelProvider share: share snapshot is empty');
+        return 'share_failed';
+      }
+
+      final encoded = jsonEncode(snapshot);
+      if (kDebugMode) {
+        debugPrint(
+          'TravelProvider share: share payload jsonBytes=${encoded.length}',
+        );
+      }
+
+      final raw = jsonDecode(encoded);
+      if (raw is! Map) return 'share_failed';
+
+      tripCopy = Map<String, dynamic>.from(raw);
+      tripCopy.remove('id');
+      tripCopy.remove('sharedEntryId');
+      tripCopy.remove('sharedByUid');
+      tripCopy.remove('sharedByEmail');
+      tripCopy.remove('sharedAt');
+    } catch (e, st) {
+      debugPrint('TravelProvider shareItineraryWithUserByEmail encode: $e\n$st');
+      return 'share_failed';
+    }
+
+    final entry = <String, dynamic>{
+      'sharedEntryId': DateTime.now().microsecondsSinceEpoch.toString(),
+      'trip': tripCopy,
+      'sharedByUid': me.uid,
+      'sharedByEmail': me.email ?? '',
+      'sharedAt': DateTime.now().toUtc().toIso8601String(),
+    };
+
+    final ref = FirebaseFirestore.instance
+        .collection('users')
+        .doc(receiverUid)
+        .collection(_firestoreTravelCollection)
+        .doc(_firestoreTravelDocId);
+
+    try {
+      await ref.set(
+        {
+          'sharedTrips': FieldValue.arrayUnion([entry]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+      if (kDebugMode) {
+        debugPrint(
+          'TravelProvider share: Firestore arrayUnion ok sharedEntryId=${entry['sharedEntryId']}',
+        );
+      }
+      return null;
+    } catch (e, st) {
+      debugPrint(
+        'TravelProvider shareItineraryWithUserByEmail arrayUnion failed: $e\n$st',
+      );
+      try {
+        await FirebaseFirestore.instance.runTransaction((txn) async {
+          final snap = await txn.get(ref);
+          final data = snap.data() ?? {};
+          final merged = <Map<String, dynamic>>[];
+          final cur = data['sharedTrips'];
+          if (cur is List) {
+            for (final x in cur) {
+              if (x is Map<String, dynamic>) {
+                merged.add(Map<String, dynamic>.from(x));
+              } else if (x is Map) {
+                merged.add(Map<String, dynamic>.from(x));
+              }
+            }
+          }
+          merged.add(entry);
+          txn.set(
+            ref,
+            {
+              'sharedTrips': merged,
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
+            SetOptions(merge: true),
+          );
+        });
+        if (kDebugMode) {
+          debugPrint(
+            'TravelProvider share: Firestore transaction append ok '
+            'sharedEntryId=${entry['sharedEntryId']}',
+          );
+        }
+        return null;
+      } catch (e2, st2) {
+        debugPrint(
+          'TravelProvider shareItineraryWithUserByEmail transaction failed: $e2\n$st2',
+        );
+        return 'share_failed';
+      }
+    }
+  }
+
   Future<void> _loadTripPlanDraftFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -1063,15 +1797,22 @@ class TravelProvider extends ChangeNotifier {
         placesJson[e.key.toString()] = e.value;
       }
 
+      final draftBody = <String, dynamic>{
+        'start': tripPlanStart?.toIso8601String(),
+        'end': tripPlanEnd?.toIso8601String(),
+        'itineraryActive': tripPlanItineraryActive,
+        'tripName': tripPlanTripName,
+        'placesByDay': placesJson,
+      };
+
+      final eId = _editingSavedTripId?.trim();
+      if (eId != null && eId.isNotEmpty) {
+        draftBody['editingTripId'] = eId;
+      }
+
       await prefs.setString(
         key,
-        jsonEncode({
-          'start': tripPlanStart?.toIso8601String(),
-          'end': tripPlanEnd?.toIso8601String(),
-          'itineraryActive': tripPlanItineraryActive,
-          'tripName': tripPlanTripName,
-          'placesByDay': placesJson,
-        }),
+        jsonEncode(draftBody),
       );
     } catch (_) {}
   }
@@ -1340,28 +2081,33 @@ class TravelProvider extends ChangeNotifier {
     final editId = _editingSavedTripId?.trim();
 
     if (editId != null && editId.isNotEmpty) {
-      final idx = savedTrips.indexWhere((t) => t['id']?.toString() == editId);
+      trip['id'] = editId;
 
-      if (idx >= 0) {
-        final existing = savedTrips[idx];
+      final idMatches = <int>[];
+      for (var i = 0; i < savedTrips.length; i++) {
+        final tid = savedTrips[i]['id']?.toString();
+        if (tid != null && tid.trim() == editId) idMatches.add(i);
+      }
 
-        trip['id'] = editId;
+      if (idMatches.isNotEmpty) {
+        final keepIdx = idMatches.first;
+        final existing = savedTrips[keepIdx];
         trip['createdAt'] =
             existing['createdAt']?.toString() ?? existing['created_at']?.toString() ?? nowIso;
+        savedTrips[keepIdx] = trip;
 
-        savedTrips[idx] = trip;
+        for (var j = idMatches.length - 1; j >= 1; j--) {
+          savedTrips.removeAt(idMatches[j]);
+        }
       } else {
-        trip['id'] = editId;
         trip['createdAt'] = nowIso;
-        savedTrips.insert(0, trip);
+        savedTrips.add(trip);
       }
     } else {
       trip['id'] = DateTime.now().millisecondsSinceEpoch.toString();
       trip['createdAt'] = nowIso;
       savedTrips.insert(0, trip);
     }
-
-    lastSavedTripId = trip['id']?.toString();
 
     await _persistSavedTrips();
 
@@ -1387,29 +2133,191 @@ class TravelProvider extends ChangeNotifier {
   // Home and search
   // ---------------------------------------------------------------------------
 
+  /// Aggregates interest labels from all users' `trips` documents (Firestore).
+  Future<List<String>> _fetchPopularTripInterestLabels() async {
+    final now = DateTime.now();
+
+    if (_popularTripInterestLabelsFetchedAt != null &&
+        now.difference(_popularTripInterestLabelsFetchedAt!) <
+            _popularTripInterestTtl &&
+        _popularTripInterestLabelsMem.isNotEmpty) {
+      return _popularTripInterestLabelsMem;
+    }
+
+    try {
+      final snap =
+          await FirebaseFirestore.instance.collection('trips').limit(400).get();
+
+      final counts = <String, int>{};
+
+      for (final d in snap.docs) {
+        final raw = d.data()['interest'];
+
+        if (raw is! List) continue;
+
+        for (final e in raw) {
+          final s = e.toString().trim().toLowerCase();
+
+          if (s.isEmpty) continue;
+
+          counts[s] = (counts[s] ?? 0) + 1;
+        }
+      }
+
+      final sorted = counts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+
+      _popularTripInterestLabelsMem =
+          sorted.take(12).map((e) => e.key).toList();
+
+      _popularTripInterestLabelsFetchedAt = now;
+
+      return _popularTripInterestLabelsMem;
+    } catch (_) {
+      return _popularTripInterestLabelsMem;
+    }
+  }
+
+  bool _tripInterestLabelMatchesPlace(
+    String labelLower,
+    Map<String, dynamic> place,
+  ) {
+    final l = labelLower;
+
+    final keys = <String>{};
+
+    if (RegExp(r'cultur|herit|hist|museum|mosque|gallery|art|تراث|ثقاف')
+        .hasMatch(l)) {
+      keys.add('interest_cultural_heritage');
+    }
+
+    if (RegExp(r'shop|mall|market|souven|تسوق').hasMatch(l)) {
+      keys.add('interest_shopping');
+    }
+
+    if (RegExp(r'food|restaurant|cafe|cuisine|dining|طعام').hasMatch(l)) {
+      keys.add('interest_trying_local_food');
+    }
+
+    if (RegExp(r'outdoor|adventure|hiking|beach|park|desert|طبيعة')
+        .hasMatch(l)) {
+      keys.add('interest_outdoor_adventures');
+    }
+
+    if (RegExp(r'relax|spa|wellness|resort').hasMatch(l)) {
+      keys.add('interest_relaxation');
+    }
+
+    if (RegExp(r'attraction|sight|landmark|explore').hasMatch(l)) {
+      keys.add('interest_local_attractions');
+    }
+
+    if (RegExp(r'leisure|night|entertain|game').hasMatch(l)) {
+      keys.add('interest_leisure');
+    }
+
+    if (RegExp(r'family|friend|social').hasMatch(l)) {
+      keys.add('interest_visiting_family_friends');
+    }
+
+    for (final k in keys) {
+      if (_matchesInterestKey(place, k)) return true;
+    }
+
+    final hay =
+        '${placeName(place)} ${placeAddress(place)} ${_placeTypesCategoryHaystack(place)}'
+            .toLowerCase();
+
+    return hay.contains(l);
+  }
+
+  int _popularAggregateScore(
+    Map<String, dynamic> place,
+    List<String> labels,
+  ) {
+    if (labels.isEmpty) return 0;
+
+    var score = 0;
+
+    for (final lb in labels) {
+      if (_tripInterestLabelMatchesPlace(lb, place)) score++;
+    }
+
+    return score;
+  }
+
+  void _sortHomePlacesByPopularInterestsThenRating(
+    List<dynamic> list,
+    List<String> popularLabels,
+  ) {
+    if (popularLabels.isEmpty) {
+      list.sort((a, b) {
+        final aRating = ((a["rating"] ?? 0) as num).toDouble();
+        final bRating = ((b["rating"] ?? 0) as num).toDouble();
+
+        return bRating.compareTo(aRating);
+      });
+
+      return;
+    }
+
+    list.sort((a, b) {
+      if (a is! Map || b is! Map) return 0;
+
+      final ma = Map<String, dynamic>.from(a);
+      final mb = Map<String, dynamic>.from(b);
+
+      final sa = _popularAggregateScore(ma, popularLabels);
+      final sb = _popularAggregateScore(mb, popularLabels);
+
+      if (sa != sb) return sb.compareTo(sa);
+
+      final aRating = ((a["rating"] ?? 0) as num).toDouble();
+      final bRating = ((b["rating"] ?? 0) as num).toDouble();
+
+      return bRating.compareTo(aRating);
+    });
+  }
+
   Future<void> loadHome(
     String city, {
     List<String> userInterestKeys = const [],
     bool forceRefresh = false,
   }) async {
-    // Default to Oman-wide discovery (Oman Vision 2040 home focus).
     final cityClean = city.trim().isEmpty ? 'Oman' : city.trim();
+    final interestKeys = userInterestKeys
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
+    if (_lastLoadedHomeCity != null &&
+        _lastLoadedHomeCity!.toLowerCase() != cityClean.toLowerCase()) {
+      _clearHomeFilterSupplement();
+    }
 
     if (!forceRefresh &&
         _lastLoadedHomeCity == cityClean &&
         homePlaces.isNotEmpty &&
-        userInterestKeys.isEmpty) {
+        interestKeys.isEmpty) {
       return;
     }
 
-    if (!forceRefresh && userInterestKeys.isEmpty) {
+    if (!forceRefresh && interestKeys.isEmpty) {
       final cached = await _readHomeCache(cityClean);
 
       if (cached != null) {
+        final labels = await _fetchPopularTripInterestLabels();
+
         homePlaces = cached;
         _lastLoadedHomeCity = cityClean;
         lastHomeLoadFilteredByInterests = false;
+
+        _stripInvalidMapsFromDynamicList(homePlaces);
+
+        _sortHomePlacesByPopularInterestsThenRating(homePlaces, labels);
+
         notifyListeners();
+
         return;
       }
     }
@@ -1420,6 +2328,8 @@ class TravelProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final popularLabels = await _fetchPopularTripInterestLabels();
+
       final Map<String, Map<String, dynamic>> merged = {};
 
       final queries = [
@@ -1443,34 +2353,43 @@ class TravelProvider extends ChangeNotifier {
 
       var list = merged.values.toList();
 
-      if (userInterestKeys.isNotEmpty) {
+      _stripInvalidMapsFromDynamicList(list);
+
+      if (interestKeys.isNotEmpty) {
         lastHomeLoadFilteredByInterests = true;
 
         list = list
             .whereType<Map<String, dynamic>>()
             .where(
-              (item) =>
-                  userInterestKeys.any((key) => _matchesInterestKey(item, key)),
+              (item) => interestKeys.any(
+                (key) => _matchesInterestKey(item, key),
+              ),
             )
             .toList();
+
+        list.sort((a, b) {
+          final aRating = ((a["rating"] ?? 0) as num).toDouble();
+          final bRating = ((b["rating"] ?? 0) as num).toDouble();
+
+          return bRating.compareTo(aRating);
+        });
+      } else {
+        _sortHomePlacesByPopularInterestsThenRating(list, popularLabels);
       }
 
       homePlaces = list;
 
-      homePlaces.sort((a, b) {
-        final aRating = ((a["rating"] ?? 0) as num).toDouble();
-        final bRating = ((b["rating"] ?? 0) as num).toDouble();
-
-        return bRating.compareTo(aRating);
-      });
-
       _lastLoadedHomeCity = cityClean;
 
-      if (userInterestKeys.isEmpty) {
+      if (interestKeys.isEmpty) {
         await _writeHomeCache(cityClean, homePlaces);
       }
     } catch (e) {
-      error = e.toString();
+      if (kDebugMode) {
+        debugPrint('TravelProvider.loadHome: $e');
+      }
+
+      error = searchFailureLocalizationKey;
       homePlaces = [];
     }
 
@@ -1503,10 +2422,12 @@ class TravelProvider extends ChangeNotifier {
 
       if (age > _homeCacheTtl) return null;
 
-      return items
+      final parsed = items
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+
+      return List<dynamic>.from(_stripInvalidPlaceMapsFromList(parsed));
     } catch (_) {
       return null;
     }
@@ -1584,10 +2505,12 @@ class TravelProvider extends ChangeNotifier {
 
       if (items is! List) return null;
 
-      return items
+      final parsed = items
           .whereType<Map>()
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
+
+      return List<dynamic>.from(_stripInvalidPlaceMapsFromList(parsed));
     } catch (_) {
       return null;
     }
@@ -1606,8 +2529,10 @@ class TravelProvider extends ChangeNotifier {
 
       final slimItems = items
           .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
           .take(_searchCacheMaxPlacesPerQuery)
-          .map((e) => _slimPlaceForSearchCache(Map<String, dynamic>.from(e)))
+          .map((e) => _slimPlaceForSearchCache(e))
           .toList();
 
       Map<String, dynamic> map = {};
@@ -1771,36 +2696,253 @@ class TravelProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> search(String query) async {
-    loading = true;
-    error = null;
+  void _clearHomeFilterSupplement() {
+    _homeFilterSupplementPlaces.clear();
+    _lastHomeFilterSupplementSignature = null;
+    homeCategoryFallbackLoading = false;
+    homeCategoryFallbackErrorKey = null;
+  }
+
+  /// Merges [homePlaces] with category supplement (deduped) for Home filter display.
+  List<dynamic> homeMergedSourceForFilters() {
+    if (_homeFilterSupplementPlaces.isEmpty) return homePlaces;
+
+    final byId = <String, Map<String, dynamic>>{};
+
+    void add(dynamic p) {
+      if (p is! Map) return;
+
+      final m = Map<String, dynamic>.from(p);
+
+      if (InvalidPlaceText.placeMapContainsErrorLikeStrings(m)) return;
+
+      final id = m['id']?.toString().trim();
+
+      final key = (id != null && id.isNotEmpty)
+          ? id
+          : '${m['formattedAddress']?.toString() ?? ''}|${m['location']?.toString() ?? ''}';
+
+      byId.putIfAbsent(key, () => m);
+    }
+
+    for (final p in homePlaces) {
+      add(p);
+    }
+
+    for (final p in _homeFilterSupplementPlaces) {
+      add(p);
+    }
+
+    return byId.values.toList();
+  }
+
+  /// Maps a Home filter chip key to a single low-cost Places text query (GCC box already in service).
+  static String? placesTextQueryForHomeCategory(String filterKey, String location) {
+    final loc = location.trim();
+
+    if (loc.isEmpty) return null;
+
+    final fk = filterKey.trim();
+
+    switch (fk) {
+      case 'filter_food_restaurants':
+      case 'Food & Restaurants':
+        return 'restaurants in $loc';
+
+      case 'filter_hotels_stays':
+      case 'Hotels & Stays':
+        return 'hotels lodging resorts in $loc';
+
+      case 'filter_museum':
+      case 'Museum':
+      case 'museum':
+        return 'museums in $loc';
+
+      case 'filter_culture_heritage':
+      case 'Culture & Heritage':
+        return 'museums mosques heritage landmarks cultural attractions in $loc';
+
+      case 'filter_shopping_souvenirs':
+      case 'Shopping & Souvenirs':
+        return 'shopping malls souks markets souvenir stores in $loc';
+
+      case 'filter_transportation':
+      case 'Transportation':
+        return 'bus stations airports train stations taxi stands car rental transport in $loc';
+
+      default:
+        if (fk.startsWith('filter_')) {
+          final tail = fk.replaceFirst('filter_', '').replaceAll('_', ' ');
+
+          return '$tail places in $loc';
+        }
+
+        return 'tourist attractions $fk in $loc';
+    }
+  }
+
+  Future<void> syncHomeFilterSupplement(
+    String location,
+    List<String> filters, {
+    String? priceSortBy,
+    String? ratingSortBy,
+  }) async {
+    final loc = location.trim().isEmpty ? 'Oman' : location.trim();
+
+    homeCategoryFallbackErrorKey = null;
+
+    if (filters.isEmpty) {
+      _clearHomeFilterSupplement();
+      notifyListeners();
+
+      return;
+    }
+
+    final base = filteredPlaces(
+      query: '',
+      filters: filters,
+      maxPrice: null,
+      priceSortBy: priceSortBy,
+      ratingSortBy: ratingSortBy,
+      sourceOverride: homePlaces,
+    );
+
+    if (base.isNotEmpty) {
+      _clearHomeFilterSupplement();
+      notifyListeners();
+
+      return;
+    }
+
+    final sortedKeys = filters.map((e) => e.toLowerCase()).toList()..sort();
+    final sig = '${loc.toLowerCase()}|${sortedKeys.join(',')}';
+
+    if (sig == _lastHomeFilterSupplementSignature &&
+        _homeFilterSupplementPlaces.isNotEmpty) {
+      return;
+    }
+
+    final rid = ++_homeFilterSupplementRequestId;
+
+    homeCategoryFallbackLoading = true;
     notifyListeners();
 
     try {
-      final q = query.trim();
+      final merged = <String, Map<String, dynamic>>{};
 
-      if (q.isEmpty) {
-        searchPlaces = [];
-      } else {
-        final cached = await _readSearchResultsCache(q);
+      for (final fk in filters) {
+        final qText = placesTextQueryForHomeCategory(fk, loc);
 
-        if (cached != null) {
-          searchPlaces = cached;
-          addSearchHistory(q, notify: false);
+        if (qText == null || qText.trim().isEmpty) continue;
+
+        final cacheKey = '${loc.toLowerCase()}::${fk.toLowerCase()}';
+
+        final List<dynamic> chunk;
+
+        if (_homeCategoryTextSearchCache.containsKey(cacheKey)) {
+          chunk = _homeCategoryTextSearchCache[cacheKey]!;
+          _stripInvalidMapsFromDynamicList(chunk);
         } else {
-          final results = await _api.searchText(q);
-          searchPlaces = _onlyGcc(results);
-          addSearchHistory(q, notify: false);
-          // Never block the UI thread on prefs JSON for large payloads.
-          unawaited(_writeSearchResultsCache(q, searchPlaces));
+          final raw = await _api.searchText(qText);
+
+          chunk = _onlyGcc(raw);
+          _stripInvalidMapsFromDynamicList(chunk);
+          _homeCategoryTextSearchCache[cacheKey] = chunk;
+
+          while (_homeCategoryTextSearchCache.length > _homeCategoryCacheMaxEntries) {
+            _homeCategoryTextSearchCache.remove(
+              _homeCategoryTextSearchCache.keys.first,
+            );
+          }
+        }
+
+        for (final item in chunk) {
+          if (item is! Map) continue;
+
+          final m = Map<String, dynamic>.from(item);
+          final pid = m['id']?.toString().trim();
+          final key = (pid != null && pid.isNotEmpty)
+              ? pid
+              : '${m['formattedAddress']?.toString() ?? ''}|${m['location']?.toString() ?? ''}';
+
+          merged.putIfAbsent(key, () => m);
         }
       }
+
+      if (rid != _homeFilterSupplementRequestId) return;
+
+      _homeFilterSupplementPlaces = merged.values.toList();
+      _stripInvalidMapsFromDynamicList(_homeFilterSupplementPlaces);
+      _lastHomeFilterSupplementSignature = sig;
     } catch (e) {
-      error = e.toString();
+      if (kDebugMode) {
+        debugPrint('syncHomeFilterSupplement: $e');
+      }
+
+      if (rid != _homeFilterSupplementRequestId) return;
+
+      _homeFilterSupplementPlaces.clear();
+      homeCategoryFallbackErrorKey = searchFailureLocalizationKey;
+    } finally {
+      if (rid == _homeFilterSupplementRequestId) {
+        homeCategoryFallbackLoading = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> search(String query) async {
+    searchLoading = true;
+    searchError = null;
+    notifyListeners();
+
+    try {
+      final raw = query.trim();
+
+      if (raw.isEmpty) {
+        searchPlaces = [];
+      } else {
+        final qForApi = normalizePlacesSearchQuery(raw);
+        final keyNorm = qForApi.toLowerCase();
+
+        final memHit = _searchPlacesSessionCache[keyNorm];
+
+        if (memHit != null) {
+          searchPlaces = memHit.map(Map<String, dynamic>.from).toList();
+          addSearchHistory(qForApi, notify: false);
+        } else {
+          final cached = await _readSearchResultsCache(qForApi);
+
+          if (cached != null) {
+            searchPlaces = cached;
+            _rememberSearchSessionPlaces(keyNorm, searchPlaces);
+            addSearchHistory(qForApi, notify: false);
+          } else {
+            final results = await _api.searchText(qForApi);
+            searchPlaces = _onlyGcc(results);
+            _rememberSearchSessionPlaces(keyNorm, searchPlaces);
+            addSearchHistory(qForApi, notify: false);
+            // Never block the UI thread on prefs JSON for large payloads.
+            unawaited(_writeSearchResultsCache(qForApi, searchPlaces));
+          }
+        }
+
+        _stripInvalidMapsFromDynamicList(searchPlaces);
+      }
+    } catch (e) {
+      searchError = _searchFailureLocalizationKeyFor(e);
       searchPlaces = [];
     }
 
-    loading = false;
+    searchLoading = false;
+    notifyListeners();
+  }
+
+  /// Clears Search-page results without calling remote APIs.
+  void clearSearchResults() {
+    searchPlaces = [];
+    searchError = null;
+    searchLoading = false;
     notifyListeners();
   }
 
@@ -1815,8 +2957,66 @@ class TravelProvider extends ChangeNotifier {
       return _onlyGcc(results)
           .whereType<Map<String, dynamic>>()
           .map((e) => Map<String, dynamic>.from(e))
+          .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
           .take(8)
           .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Search-page only: debounced caller should pass [sessionToken] from the page.
+  /// Results are cached in memory per normalized query for the app session.
+  Future<List<Map<String, dynamic>>> searchPageAutocompleteSuggestions({
+    required String query,
+    required String sessionToken,
+    String? languageCode,
+  }) async {
+    final q = query.trim();
+
+    if (q.length < 3) return [];
+
+    final key = q.toLowerCase();
+
+    final hit = _searchAutocompleteCache[key];
+
+    if (hit != null) {
+      return hit
+          .where((row) {
+            final t = row['suggestionText']?.toString() ?? '';
+
+            return !InvalidPlaceText.isInvalid(t) &&
+                !InvalidPlaceText.placeMapContainsErrorLikeStrings(row);
+          })
+          .toList();
+    }
+
+    try {
+      final raw = await _api.autocomplete(
+        input: q,
+        sessionToken: sessionToken,
+        languageCode: languageCode,
+      );
+
+      final dedup = <String, Map<String, dynamic>>{};
+
+      for (final row in raw) {
+        final text = row['suggestionText']?.toString().trim() ?? '';
+
+        if (text.isEmpty) continue;
+
+        if (InvalidPlaceText.isInvalid(text)) continue;
+
+        final lk = text.toLowerCase();
+
+        dedup.putIfAbsent(lk, () => Map<String, dynamic>.from(row));
+      }
+
+      final list = dedup.values.take(10).toList();
+
+      _searchAutocompleteCache[key] = list;
+
+      return list;
     } catch (_) {
       return [];
     }
@@ -1831,6 +3031,8 @@ class TravelProvider extends ChangeNotifier {
 
     if (text.isEmpty) return;
 
+    if (InvalidPlaceText.isInvalid(text)) return;
+
     searchHistory.removeWhere(
       (item) => item.toLowerCase() == text.toLowerCase(),
     );
@@ -1844,8 +3046,31 @@ class TravelProvider extends ChangeNotifier {
     if (notify) notifyListeners();
   }
 
+  void sanitizeUserFacingLists() {
+    final favBefore = favoritePlaces.length;
+
+    searchHistory.removeWhere(InvalidPlaceText.isInvalid);
+    recentlyViewed.removeWhere(InvalidPlaceText.placeMapContainsErrorLikeStrings);
+    favoritePlaces.removeWhere(InvalidPlaceText.placeMapContainsErrorLikeStrings);
+    _stripInvalidMapsFromDynamicList(homePlaces);
+    _stripInvalidMapsFromDynamicList(searchPlaces);
+    _stripInvalidMapsFromDynamicList(_homeFilterSupplementPlaces);
+
+    if (favoritePlaces.length != favBefore) {
+      unawaited(_persistFavoritesPrefsOnly());
+    }
+
+    notifyListeners();
+  }
+
   void addRecentlyViewed(Map<String, dynamic> place) {
-    final currentId = place["id"]?.toString() ?? placeName(place).toLowerCase();
+    if (InvalidPlaceText.placeMapContainsErrorLikeStrings(place)) return;
+
+    final title = placeName(place);
+
+    if (InvalidPlaceText.isInvalid(title)) return;
+
+    final currentId = place["id"]?.toString() ?? title.toLowerCase();
 
     recentlyViewed.removeWhere((item) {
       final itemId = item["id"]?.toString() ?? placeName(item).toLowerCase();
@@ -1900,7 +3125,7 @@ class TravelProvider extends ChangeNotifier {
     if (sourceOverride != null) {
       source = sourceOverride;
     } else {
-      source = searchPlaces.isNotEmpty ? searchPlaces : homePlaces;
+      source = homePlaces;
     }
 
     final qLower = query.trim().toLowerCase();
@@ -1911,6 +3136,8 @@ class TravelProvider extends ChangeNotifier {
       final Map<String, dynamic> map = item is Map<String, dynamic>
           ? item
           : Map<String, dynamic>.from(item);
+
+      if (InvalidPlaceText.placeMapContainsErrorLikeStrings(map)) continue;
 
       if (!_placeMatchesSearchQuery(map, qLower)) continue;
 
@@ -2075,18 +3302,42 @@ class TravelProvider extends ChangeNotifier {
     String raw;
     if (dn is Map && dn["text"] != null) {
       raw = dn["text"].toString();
+    } else if (dn is String) {
+      raw = dn;
     } else {
-      raw = place["displayName"]?.toString() ?? "Unknown";
+      raw = "";
+    }
+
+    if (raw.trim().isEmpty) {
+      final n = place["name"]?.toString().trim();
+      if (n != null && n.isNotEmpty) {
+        raw = n;
+      }
+    }
+
+    if (raw.trim().isEmpty) {
+      raw = "Unknown";
     }
 
     if (AiTripPlanMarkdownParser.looksLikeAiMarkdownBlob(raw)) {
       return AiTripPlanMarkdownParser.stripItineraryMarkdownForDisplay(raw);
     }
+
+    if (InvalidPlaceText.isInvalid(raw)) {
+      return 'Unknown';
+    }
+
     return raw;
   }
 
   String placeAddress(Map<String, dynamic> place) {
-    return place["formattedAddress"]?.toString() ?? "";
+    final addr = place["formattedAddress"]?.toString() ?? "";
+
+    if (InvalidPlaceText.isInvalid(addr)) {
+      return "";
+    }
+
+    return addr;
   }
 
   String placeDescription(Map<String, dynamic> place) {
@@ -2095,7 +3346,7 @@ class TravelProvider extends ChangeNotifier {
     if (editorial is Map && editorial["text"] != null) {
       final text = editorial["text"].toString().trim();
 
-      if (text.isNotEmpty) return text;
+      if (text.isNotEmpty && !InvalidPlaceText.isInvalid(text)) return text;
     }
 
     return placeSummaryDescription(place);
@@ -2164,6 +3415,211 @@ class TravelProvider extends ChangeNotifier {
     if (parts.length < 2) return "";
 
     return parts.last;
+  }
+
+  /// Normalized governorate / admin-area key for same-day GCC rules (Oman-focused fallbacks).
+  String _governorateComparableKey(Map<String, dynamic> place) {
+    final stored = place['governorateKey']?.toString().trim();
+
+    if (stored != null && stored.isNotEmpty) {
+      return _normalizeGovernorateComparable(stored);
+    }
+
+    final fromComponents = _adminAreaLevel1FromAddressComponents(place['addressComponents']);
+
+    if (fromComponents.isNotEmpty) {
+      return _normalizeGovernorateComparable(fromComponents);
+    }
+
+    final addr = placeAddress(place);
+    final fromAddr = _governorateFromFreeformAddress(addr);
+
+    if (fromAddr.isNotEmpty) return fromAddr;
+
+    final city = _extractCity(addr);
+    var key = _omanLocalityToGovernorateKey(city);
+
+    if (key.isNotEmpty) return key;
+
+    key = _omanGovernorateFromAddressSegments(addr);
+
+    if (key.isNotEmpty) return key;
+
+    key = _omanLocalityToGovernorateKey(placeName(place));
+
+    return key;
+  }
+
+  String _normalizeGovernorateComparable(String raw) {
+    var s = raw.toLowerCase().trim();
+
+    s = s.replaceAll(RegExp(r'\s+'), ' ');
+    s = s.replaceAll(' governorate', '');
+    s = s.replaceAll('muḥāfaẓat', 'muhafazat');
+    s = s.replaceAll(RegExp(r'^محافظة\s*'), '');
+    s = s.replaceAll(RegExp(r'\s+'), '_');
+
+    return s;
+  }
+
+  String _adminAreaLevel1FromAddressComponents(dynamic raw) {
+    if (raw is! List) return '';
+
+    for (final item in raw) {
+      if (item is! Map) continue;
+
+      final types = item['types'];
+
+      if (types is! List) continue;
+
+      final typeStrs = types.map((e) => e.toString()).toList();
+
+      if (!typeStrs.contains('administrative_area_level_1')) continue;
+
+      final lt = item['longText']?.toString() ?? item['long_name']?.toString();
+      final st = item['shortText']?.toString() ?? item['short_name']?.toString();
+
+      if (lt != null && lt.trim().isNotEmpty) return lt.trim();
+
+      if (st != null && st.trim().isNotEmpty) return st.trim();
+    }
+
+    return '';
+  }
+
+  static const Map<String, String> _omanGovernoratePhraseKeys = {
+    'ash sharqiyah north governorate': 'ash_sharqiyah_north',
+    'ash sharqiyah south governorate': 'ash_sharqiyah_south',
+    'al batinah north governorate': 'al_batinah_north',
+    'al batinah south governorate': 'al_batinah_south',
+    'ad dakhiliyah governorate': 'ad_dakhiliyah',
+    'adh dakhiliyah governorate': 'ad_dakhiliyah',
+    'ad dhahirah governorate': 'ad_dhahirah',
+    'adh dhahirah governorate': 'ad_dhahirah',
+    'al buraimi governorate': 'al_buraimi',
+    'al wusta governorate': 'al_wusta',
+    'musandam governorate': 'musandam',
+    'dhofar governorate': 'dhofar',
+    'muscat governorate': 'muscat',
+    'محافظة شمال الشرقية': 'ash_sharqiyah_north',
+    'محافظة جنوب الشرقية': 'ash_sharqiyah_south',
+    'محافظة شمال الباطنة': 'al_batinah_north',
+    'محافظة جنوب الباطنة': 'al_batinah_south',
+    'محافظة الداخلية': 'ad_dakhiliyah',
+    'محافظة الظاهرة': 'ad_dhahirah',
+    'محافظة البريمي': 'al_buraimi',
+    'محافظة الوسطى': 'al_wusta',
+    'محافظة مسندم': 'musandam',
+    'محافظة ظفار': 'dhofar',
+    'محافظة مسقط': 'muscat',
+  };
+
+  String _governorateFromFreeformAddress(String address) {
+    if (address.isEmpty) return '';
+
+    final lower = address.toLowerCase();
+    final keys = _omanGovernoratePhraseKeys.keys.toList()
+      ..sort((a, b) => b.length.compareTo(a.length));
+
+    for (final phrase in keys) {
+      final isAscii = phrase.isNotEmpty && phrase.codeUnitAt(0) < 128;
+      final hit = isAscii ? lower.contains(phrase) : address.contains(phrase);
+
+      if (hit) return _omanGovernoratePhraseKeys[phrase]!;
+    }
+
+    return '';
+  }
+
+  static const Map<String, String> _omanLocalityGovernorateKeys = {
+    'seeb': 'muscat',
+    'as sib': 'muscat',
+    'sib': 'muscat',
+    'al seeb': 'muscat',
+    'muscat': 'muscat',
+    'muttrah': 'muscat',
+    'matrah': 'muscat',
+    'qurum': 'muscat',
+    'al qurum': 'muscat',
+    'ruwi': 'muscat',
+    'bawshar': 'muscat',
+    'al amerat': 'muscat',
+    'al aziba': 'muscat',
+    'al khuwair': 'muscat',
+    'ghubrah': 'muscat',
+    'ghala': 'muscat',
+    'al rusayl': 'muscat',
+    'madinat as sultan qaboos': 'muscat',
+    'al mouj': 'muscat',
+    'almouj': 'muscat',
+    'nizwa': 'ad_dakhiliyah',
+    'bahla': 'ad_dakhiliyah',
+    'adam': 'ad_dakhiliyah',
+    'manah': 'ad_dakhiliyah',
+    'al hamra': 'ad_dakhiliyah',
+    'izki': 'ad_dakhiliyah',
+    'bidbid': 'ad_dakhiliyah',
+    'samail': 'ad_dakhiliyah',
+    'sohar': 'al_batinah_north',
+    'shinas': 'al_batinah_north',
+    'liwa': 'al_batinah_north',
+    'saham': 'al_batinah_north',
+    'al khaburah': 'al_batinah_north',
+    'suwaiq': 'al_batinah_north',
+    'al awabi': 'al_batinah_south',
+    'nakhal': 'al_batinah_south',
+    'wadi al maawil': 'al_batinah_south',
+    'rustaq': 'al_batinah_south',
+    'barka': 'al_batinah_south',
+    'al musannah': 'al_batinah_south',
+    'ibra': 'ash_sharqiyah_north',
+    'bidiyah': 'ash_sharqiyah_north',
+    'al mudaybi': 'ash_sharqiyah_north',
+    'wadi bani khalid': 'ash_sharqiyah_north',
+    'sur': 'ash_sharqiyah_south',
+    'al kamil wal wafi': 'ash_sharqiyah_south',
+    'jalan': 'ash_sharqiyah_south',
+    'masirah': 'ash_sharqiyah_south',
+    'salalah': 'dhofar',
+    'taqah': 'dhofar',
+    'mirbat': 'dhofar',
+    'rakhyut': 'dhofar',
+    'thumrait': 'dhofar',
+    'sadh': 'dhofar',
+    'mughsayl': 'dhofar',
+    'dibba': 'musandam',
+    'khasab': 'musandam',
+    'bukha': 'musandam',
+    'haima': 'al_wusta',
+    'duqm': 'al_wusta',
+    'mahout': 'al_wusta',
+    'al jazer': 'al_wusta',
+    'ibri': 'ad_dhahirah',
+    'yanqul': 'ad_dhahirah',
+    'dhank': 'ad_dhahirah',
+    'al buraimi': 'al_buraimi',
+    'mahdah': 'al_buraimi',
+    'as sunaynah': 'al_buraimi',
+  };
+
+  String _omanLocalityToGovernorateKey(String raw) {
+    if (raw.isEmpty) return '';
+
+    final k = raw.toLowerCase().trim();
+
+    return _omanLocalityGovernorateKeys[k] ?? '';
+  }
+
+  String _omanGovernorateFromAddressSegments(String address) {
+    if (address.isEmpty) return '';
+
+    for (final seg in address.split(',')) {
+      final g = _omanLocalityToGovernorateKey(seg.trim());
+
+      if (g.isNotEmpty) return g;
+    }
+
+    return '';
   }
 
   String _buildSavedTripCitiesLine() {
@@ -2786,912 +4242,3 @@ class TravelProvider extends ChangeNotifier {
   }
 
 }
-import 'dart:math';
-import 'dart:typed_data';
-import 'package:firebase_auth/firebase_auth.dart';
-import '../utils/invalid_place_text.dart';
-/// Converts Firestore-typed values ([Timestamp], [GeoPoint], …) and strips binary
-/// ([Uint8List], [Blob], [TypedData]) so [jsonEncode] stays small and Firestore writes succeed.
-/// **Important:** [Uint8List] implements [Iterable<int>]. If handled as a generic [Iterable],
-/// each byte becomes a JSON number and the payload can exceed Firestore limits—often seen on
-/// active itineraries (map tiles, thumbnails) while older completed trips are URL-only.
-dynamic _tripDataJsonSafeValue(dynamic value) {
-  if (value == null) return null;
-  if (value is bool || value is String) return value;
-  if (value is num) {
-    if (value.isNaN || value.isInfinite) return null;
-    return value;
-  if (value is Timestamp) {
-    return value.toDate().toUtc().toIso8601String();
-  if (value is DateTime) {
-    return value.toUtc().toIso8601String();
-  if (value is GeoPoint) {
-    return <String, double>{
-      'latitude': value.latitude,
-      'longitude': value.longitude,
-  if (value is DocumentReference) {
-    return value.path;
-  if (value is Blob) {
-  if (value is VectorValue) {
-    return value.toArray();
-  if (value is TypedData) {
-  if (value is Map) {
-    final out = <String, dynamic>{};
-    value.forEach((k, v) {
-      out[k.toString()] = _tripDataJsonSafeValue(v);
-  if (value is Iterable) {
-    return value.map(_tripDataJsonSafeValue).toList();
-  return value.toString();
-/// Keys (and key substrings) removed from the **shared copy only** — map, route, and binary.
-bool _sharePayloadKeyIsBanned(String key) {
-  final s = key.toLowerCase();
-  const uriKeepers = {'googlemapsuri', 'googlenavigationuri'};
-  if (uriKeepers.contains(s)) return false;
-  const exactBan = {
-    'geometry',
-    'bounds',
-    'viewport',
-    'camera',
-    'coordinates',
-    'overview_polyline',
-    'overviewpolyline',
-    'encoded_polyline',
-    'encodedpolyline',
-    'polylines',
-    'polyline',
-    'routes',
-    'routedata',
-    'routepoints',
-    'markers',
-    'markerbitmap',
-    'snapshot',
-    'thumbnail',
-    'thumbnails',
-    'bitmap',
-    'cached',
-    'cache',
-    'geopoint',
-    'geojson',
-    'geohash',
-    'tiles',
-    'tile',
-    'groundoverlay',
-    'vector',
-    'blob',
-    'contentbytes',
-    'photos',
-    'photometadata',
-    'addresscomponents',
-    'adrformataddress',
-    'routesteps',
-    'legs',
-    'navigationendpoint',
-    'daypolylines',
-    'routematrix',
-    'mapview',
-    'mapstyle',
-    'mapdata',
-    'mapcache',
-    'cachedmap',
-    'staticmap',
-    'mapsnapshot',
-    'routeshape',
-    'routeline',
-    'markericon',
-    'markerimage',
-    'markerdata',
-    'polylinepoints',
-    'encodedpath',
-  if (exactBan.contains(s)) return true;
-  if (s.contains('polyline')) return true;
-  if (s.contains('viewport')) return true;
-  if (s.contains('snapshot')) return true;
-  if (s.contains('thumbnail')) return true;
-  if (s.contains('geopoint')) return true;
-  if (s.contains('groundoverlay')) return true;
-  if (s.contains('encodedpolyline')) return true;
-  if (s.contains('markerbitmap')) return true;
-  if (s.contains('staticmap')) return true;
-  if (s.contains('mapsnapshot')) return true;
-  if (s.contains('routedata')) return true;
-  if (s.contains('routepoints')) return true;
-  if (s.contains('routeresponse')) return true;
-  if (s.contains('mapcache')) return true;
-  if (s.contains('cachedmap')) return true;
-  if (s == 'map' || s == 'maps') return true;
-  if (s.startsWith('map') && s != 'mapurl') return true;
-  if (s.endsWith('map') && s.length > 3) return true;
-  if (s.contains('_map') || s.contains('map_')) return true;
-  if (s == 'route' || s == 'routes') return true;
-  if (s.startsWith('route_') || s.endsWith('_route')) return true;
-  if (s.contains('routepoints')) return true;
-  if (s.contains('marker')) {
-    if (s == 'scheduledtimeminutes') return false;
-    if (s.contains('scheduledtime')) return false;
-    if (s.contains('remark')) return false;
-dynamic _stripHeavyKeysForShare(
-  dynamic value, {
-  int depth = 0,
-  Set<String>? removedKeys,
-  String path = '',
-  if (depth > 80) return null;
-  if (value == null) return null;
-  if (value is TypedData || value is Blob) {
-    removedKeys?.add(path.isEmpty ? '<TypedData>' : path);
-  if (value is Timestamp) {
-    return value.toDate().toUtc().toIso8601String();
-  if (value is DateTime) {
-    return value.toUtc().toIso8601String();
-  if (value is GeoPoint) {
-    return <String, double>{
-      'latitude': value.latitude,
-      'longitude': value.longitude,
-  if (value is DocumentReference) {
-    removedKeys?.add(path.isEmpty ? '<DocumentReference>' : path);
-  if (value is VectorValue) {
-    removedKeys?.add(path.isEmpty ? '<VectorValue>' : path);
-  if (value is String) {
-    if (value.length > 12000) {
-      removedKeys?.add('$path.<truncated>');
-      return value.substring(0, 12000);
-    return value;
-  if (value is num) {
-    if (value.isNaN || value.isInfinite) return null;
-    return value;
-  if (value is bool) return value;
-  if (value is Map) {
-    final out = <String, dynamic>{};
-    for (final e in value.entries) {
-      final k = e.key.toString();
-      final childPath = path.isEmpty ? k : '$path.$k';
-      if (_sharePayloadKeyIsBanned(k)) {
-        removedKeys?.add(childPath);
-      final v = _stripHeavyKeysForShare(
-        e.value,
-        depth: depth + 1,
-        removedKeys: removedKeys,
-        path: childPath,
-      if (v != null) {
-        out[k] = v;
-      } else if (e.value is bool) {
-        out[k] = e.value;
-      } else if (e.value is num && e.value == 0) {
-        out[k] = 0;
-  if (value is Iterable) {
-    var i = 0;
-    for (final e in value) {
-      final childPath = '$path[$i]';
-      i++;
-      final v = _stripHeavyKeysForShare(
-        depth: depth + 1,
-        removedKeys: removedKeys,
-        path: childPath,
-      if (v != null) {
-        out.add(v);
-      } else if (e is Map) {
-        out.add(<String, dynamic>{});
-      } else if (e is Iterable) {
-        out.add(<dynamic>[]);
-  return value.toString();
-Map<String, dynamic> _buildShareableTripSnapshotForShare(
-  final removed = <String>{};
-  if (kDebugMode) {
-      'TravelProvider share snapshot: original top-level keys=${trip.keys.toList()}',
-  final normalized = _tripDataJsonSafeValue(trip);
-  if (normalized is! Map) {
-    return <String, dynamic>{};
-  final base = Map<String, dynamic>.from(normalized);
-  final stripped = _stripHeavyKeysForShare(
-    base,
-    removedKeys: removed,
-  if (stripped is! Map) {
-    return <String, dynamic>{};
-  final out = Map<String, dynamic>.from(stripped);
-  if (kDebugMode) {
-      'TravelProvider share snapshot: stripped top-level keys=${out.keys.toList()}',
-      'TravelProvider share snapshot: removed paths (showing up to 60): '
-      '${removed.take(60).join(', ')}${removed.length > 60 ? '…' : ''}',
-    final enc = jsonEncode(out);
-    debugPrint('TravelProvider share snapshot: final jsonBytes=${enc.length}');
-    for (final k in out.keys) {
-      final piece = jsonEncode(<String, dynamic>{k: out[k]});
-      if (piece.length > 25000) {
-          'TravelProvider share snapshot: LARGE top-level field "$k" '
-          'bytes=${piece.length}',
-  /// Set when [search] fails; kept separate from [error] so a search failure does
-  /// not wipe a home-load error and vice versa.
-  String? searchError;
-  bool searchLoading = false;
-  /// Kept for compatibility; home recommendations no longer use the signed-in
-  /// user's personal interest filters (see all-user popularity in [loadHome]).
-  /// Extra places loaded when Home filters match nothing in [homePlaces] (location-scoped).
-  List<dynamic> _homeFilterSupplementPlaces = [];
-  bool homeCategoryFallbackLoading = false;
-  String? homeCategoryFallbackErrorKey;
-  String? _lastHomeFilterSupplementSignature;
-  int _homeFilterSupplementRequestId = 0;
-  final Map<String, List<dynamic>> _homeCategoryTextSearchCache = {};
-  static const int _homeCategoryCacheMaxEntries = 32;
-    sharedTrips = [];
-    _searchAutocompleteCache.clear();
-    _searchPlacesSessionCache.clear();
-    _homeCategoryTextSearchCache.clear();
-    _homeFilterSupplementPlaces.clear();
-    _lastHomeFilterSupplementSignature = null;
-    homeCategoryFallbackLoading = false;
-    homeCategoryFallbackErrorKey = null;
-    if (InvalidPlaceText.placeMapContainsErrorLikeStrings(place)) return;
-      final beforeCt = favoritePlaces.length;
-      favoritePlaces.removeWhere(InvalidPlaceText.placeMapContainsErrorLikeStrings);
-      if (favoritePlaces.length != beforeCt) {
-        unawaited(_persistFavoritesPrefsOnly());
-    final eId = m['editingTripId']?.toString().trim();
-    _editingSavedTripId = (eId != null && eId.isNotEmpty) ? eId : null;
-    favoritePlaces.removeWhere(InvalidPlaceText.placeMapContainsErrorLikeStrings);
-    sharedTrips = _asMapList(data['sharedTrips']);
-    final out = <String, dynamic>{
-    final eId = _editingSavedTripId?.trim();
-    if (eId != null && eId.isNotEmpty) {
-      out['editingTripId'] = eId;
-        'sharedTrips': sharedTrips,
-  /// Manual trip planner: max activities + hotel rows per calendar day.
-  static const int maxManualPlacesPerTripDay = 7;
-    if (list.length > maxManualPlacesPerTripDay) return 'max_places_per_day';
-    final anchorAddr = placeAddress(list.first);
-    String? anchorGov;
-      final g = _governorateComparableKey(p);
-      if (g.isNotEmpty) {
-        anchorGov = g;
-    if (anchorGov == null) return null;
-      final gov = _governorateComparableKey(p);
-      if (gov.isNotEmpty && gov != anchorGov) {
-        return 'different_governorates_same_day';
-    if (list.length >= maxManualPlacesPerTripDay) {
-  static const Set<String> _gccCountryCodes = {
-    'OM',
-    'AE',
-    'SA',
-    'QA',
-    'BH',
-    'KW',
-  /// In-memory autocomplete cache for the Search page (session lifetime).
-  final Map<String, List<Map<String, dynamic>>> _searchAutocompleteCache = {};
-  /// In-memory Text Search results for the session (normalized query key).
-  final Map<String, List<Map<String, dynamic>>> _searchPlacesSessionCache = {};
-  static const int _searchSessionCacheMaxEntries = 36;
-  List<String> _popularTripInterestLabelsMem = [];
-  DateTime? _popularTripInterestLabelsFetchedAt;
-  static const Duration _popularTripInterestTtl = Duration(minutes: 45);
-  static String generateAutocompleteSessionToken() {
-    const chars =
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-    final r = Random.secure();
-    return List.generate(32, (_) => chars[r.nextInt(chars.length)]).join();
-  /// Collapses verbose selected autocomplete strings into a concise Text Search query.
-  /// Example: "UAE - Dubai - United Arab Emirates" -> "Dubai"
-  static String normalizePlacesSearchQuery(String raw) {
-    var s = raw.trim();
-    if (s.isEmpty) return s;
-    s = s.replaceAll(RegExp(r'[\t\n\r]+'), ' ');
-    s = s.replaceAll(RegExp(r'[\s\-_,;|]+'), ' ');
-    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (s.isEmpty) return raw.trim();
-    const noiseTokens = <String>[
-      'united arab emirates',
-      'united arab emirate',
-      'uae',
-      'kingdom of saudi arabia',
-      'kingdom of bahrain',
-      'state of qatar',
-      'state of kuwait',
-      'saudi arabia',
-      'ksa',
-      'bahrain',
-      'qatar',
-      'kuwait',
-      'oman',
-      'gcc',
-      'middle east',
-    for (final token in noiseTokens) {
-      s = s.replaceAll(
-        RegExp('\\b${RegExp.escape(token)}\\b', caseSensitive: false),
-    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (s.length < 2) return raw.trim();
-  static const String searchFailureLocalizationKey = 'places_connection_error';
-  /// Shared validation for place titles, addresses, history chips, etc.
-  static bool isInvalidPlaceText(String? text) => InvalidPlaceText.isInvalid(text);
-  void _stripInvalidMapsFromDynamicList(List<dynamic> list) {
-    list.removeWhere((e) {
-      if (e is! Map) return true;
-      final m = e is Map<String, dynamic> ? e : Map<String, dynamic>.from(e);
-      return InvalidPlaceText.placeMapContainsErrorLikeStrings(m);
-  List<Map<String, dynamic>> _stripInvalidPlaceMapsFromList(
-    List<Map<String, dynamic>> items,
-        .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
-  String _searchFailureLocalizationKeyFor(Object e) {
-    if (kDebugMode) {
-      debugPrint('TravelProvider.search failed: $e');
-    return searchFailureLocalizationKey;
-  void _rememberSearchSessionPlaces(String key, List<dynamic> items) {
-    final copy = items
-        .map((m) => Map<String, dynamic>.from(m))
-        .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
-    _searchPlacesSessionCache[key] = copy;
-    while (_searchPlacesSessionCache.length > _searchSessionCacheMaxEntries) {
-      final k = _searchPlacesSessionCache.keys.first;
-      _searchPlacesSessionCache.remove(k);
-  String? _countryShortFromPlace(Map<String, dynamic> place) {
-    final raw = place['addressComponents'];
-    if (raw is! List) return null;
-    for (final item in raw) {
-      final types = item['types'];
-      if (types is! List) continue;
-      final typeStrs = types.map((e) => e.toString()).toList();
-      if (!typeStrs.contains('country')) continue;
-      final st = item['shortText']?.toString() ?? item['short_name']?.toString();
-      if (st != null && st.trim().isNotEmpty) return st.trim().toUpperCase();
-  /// True when the place is in a GCC country (prefer address country code).
-  bool _placeInGcc(Map<String, dynamic> place) {
-    final code = _countryShortFromPlace(place);
-    if (code != null && code.isNotEmpty) {
-      return _gccCountryCodes.contains(code);
-    if (addr.contains('oman') ||
-        addr.contains('uae') ||
-        addr.contains('emirates') ||
-        addr.contains('dubai') ||
-        addr.contains('abu dhabi') ||
-        addr.contains('sharjah') ||
-        addr.contains('saudi') ||
-        addr.contains('qatar') ||
-        addr.contains('bahrain') ||
-        addr.contains('kuwait')) {
-    return _insideGccBox(place);
-      if (_placeInGcc(m) && !InvalidPlaceText.placeMapContainsErrorLikeStrings(m)) {
-  /// Itineraries shared with this user (Firestore `sharedTrips` on travel storage).
-  List<Map<String, dynamic>> sharedTrips = [];
-  /// Reloads travel data from Firestore for the current storage scope (e.g. after a share was received).
-  Future<void> refreshTravelFromFirestore() async {
-    if (_isGuestScope) return;
-      debugPrint('TravelProvider refreshTravelFromFirestore: $e');
-  /// Returns a deep copy of [trip] suitable for [loadSavedTripIntoPlanner] so the user saves a new itinerary.
-  Map<String, dynamic> prepareTripSnapshotForPlannerReuse(
-      final sanitized = _tripDataJsonSafeValue(trip);
-      if (sanitized is! Map) return Map<String, dynamic>.from(trip);
-      final raw = jsonDecode(jsonEncode(sanitized));
-      if (raw is! Map) return Map<String, dynamic>.from(trip);
-      m.remove('id');
-      m.remove('sharedEntryId');
-      m.remove('sharedByUid');
-      m.remove('sharedByEmail');
-      m.remove('sharedAt');
-      return m;
-      final m = Map<String, dynamic>.from(trip);
-      m.remove('id');
-      return m;
-  /// Shares a snapshot of [trip] with the account registered in Firestore under [emailInput].
-  /// Returns `null` on success, or a localization key for an error message.
-  Future<String?> shareItineraryWithUserByEmail(
-    String emailInput,
-    if (_isGuestScope) return 'share_requires_login';
-    final trimmed = emailInput.trim();
-    if (trimmed.isEmpty || !trimmed.contains('@')) {
-      return 'share_invalid_email';
-    final me = FirebaseAuth.instance.currentUser;
-    if (me == null) return 'share_requires_login';
-    final myEmail = me.email?.trim().toLowerCase() ?? '';
-    if (trimmed.toLowerCase() == myEmail) {
-      return 'share_cannot_share_with_self';
-    String? receiverUid;
-    final candidates = <String>{trimmed, trimmed.toLowerCase()};
-    for (final candidate in candidates) {
-      if (candidate.isEmpty) continue;
-        final snap = await FirebaseFirestore.instance
-            .where('email', isEqualTo: candidate)
-            .limit(1)
-        if (snap.docs.isNotEmpty) {
-          receiverUid = snap.docs.first.id;
-        debugPrint('TravelProvider shareItinerary lookup: $e');
-        return 'share_failed';
-    if (receiverUid == null || receiverUid.isEmpty) {
-      return 'share_user_not_found';
-    if (receiverUid == me.uid) return 'share_cannot_share_with_self';
-    final statusKey = trip['statusKey']?.toString();
-    final tripId = trip['id']?.toString();
-    final endDate = trip['endDate']?.toString();
-    if (kDebugMode) {
-        'TravelProvider share: start statusKey=$statusKey id=$tripId endDate=$endDate '
-        'receiver=$receiverUid email=$trimmed',
-    Map<String, dynamic> tripCopy;
-      final snapshot = _buildShareableTripSnapshotForShare(
-        Map<String, dynamic>.from(trip),
-      if (snapshot.isEmpty) {
-        debugPrint('TravelProvider share: share snapshot is empty');
-        return 'share_failed';
-      final encoded = jsonEncode(snapshot);
-      if (kDebugMode) {
-          'TravelProvider share: share payload jsonBytes=${encoded.length}',
-      final raw = jsonDecode(encoded);
-      if (raw is! Map) return 'share_failed';
-      tripCopy = Map<String, dynamic>.from(raw);
-      tripCopy.remove('id');
-      tripCopy.remove('sharedEntryId');
-      tripCopy.remove('sharedByUid');
-      tripCopy.remove('sharedByEmail');
-      tripCopy.remove('sharedAt');
-    } catch (e, st) {
-      debugPrint('TravelProvider shareItineraryWithUserByEmail encode: $e\n$st');
-      return 'share_failed';
-    final entry = <String, dynamic>{
-      'sharedEntryId': DateTime.now().microsecondsSinceEpoch.toString(),
-      'trip': tripCopy,
-      'sharedByUid': me.uid,
-      'sharedByEmail': me.email ?? '',
-      'sharedAt': DateTime.now().toUtc().toIso8601String(),
-    final ref = FirebaseFirestore.instance
-        .doc(receiverUid)
-          'sharedTrips': FieldValue.arrayUnion([entry]),
-      if (kDebugMode) {
-          'TravelProvider share: Firestore arrayUnion ok sharedEntryId=${entry['sharedEntryId']}',
-    } catch (e, st) {
-        'TravelProvider shareItineraryWithUserByEmail arrayUnion failed: $e\n$st',
-        await FirebaseFirestore.instance.runTransaction((txn) async {
-          final snap = await txn.get(ref);
-          final data = snap.data() ?? {};
-          final merged = <Map<String, dynamic>>[];
-          final cur = data['sharedTrips'];
-          if (cur is List) {
-            for (final x in cur) {
-              if (x is Map<String, dynamic>) {
-                merged.add(Map<String, dynamic>.from(x));
-              } else if (x is Map) {
-                merged.add(Map<String, dynamic>.from(x));
-          merged.add(entry);
-          txn.set(
-            ref,
-              'sharedTrips': merged,
-        if (kDebugMode) {
-            'TravelProvider share: Firestore transaction append ok '
-            'sharedEntryId=${entry['sharedEntryId']}',
-      } catch (e2, st2) {
-          'TravelProvider shareItineraryWithUserByEmail transaction failed: $e2\n$st2',
-        return 'share_failed';
-      final draftBody = <String, dynamic>{
-      final eId = _editingSavedTripId?.trim();
-      if (eId != null && eId.isNotEmpty) {
-        draftBody['editingTripId'] = eId;
-        jsonEncode(draftBody),
-      final idMatches = <int>[];
-      for (var i = 0; i < savedTrips.length; i++) {
-        final tid = savedTrips[i]['id']?.toString();
-        if (tid != null && tid.trim() == editId) idMatches.add(i);
-      if (idMatches.isNotEmpty) {
-        final keepIdx = idMatches.first;
-        final existing = savedTrips[keepIdx];
-        savedTrips[keepIdx] = trip;
-        for (var j = idMatches.length - 1; j >= 1; j--) {
-          savedTrips.removeAt(idMatches[j]);
-        savedTrips.add(trip);
-  /// Aggregates interest labels from all users' `trips` documents (Firestore).
-  Future<List<String>> _fetchPopularTripInterestLabels() async {
-    if (_popularTripInterestLabelsFetchedAt != null &&
-        now.difference(_popularTripInterestLabelsFetchedAt!) <
-            _popularTripInterestTtl &&
-        _popularTripInterestLabelsMem.isNotEmpty) {
-      return _popularTripInterestLabelsMem;
-          await FirebaseFirestore.instance.collection('trips').limit(400).get();
-      final counts = <String, int>{};
-      for (final d in snap.docs) {
-        final raw = d.data()['interest'];
-        if (raw is! List) continue;
-          final s = e.toString().trim().toLowerCase();
-          if (s.isEmpty) continue;
-          counts[s] = (counts[s] ?? 0) + 1;
-      final sorted = counts.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      _popularTripInterestLabelsMem =
-          sorted.take(12).map((e) => e.key).toList();
-      _popularTripInterestLabelsFetchedAt = now;
-      return _popularTripInterestLabelsMem;
-      return _popularTripInterestLabelsMem;
-  bool _tripInterestLabelMatchesPlace(
-    String labelLower,
-    final l = labelLower;
-    final keys = <String>{};
-    if (RegExp(r'cultur|herit|hist|museum|mosque|gallery|art|تراث|ثقاف')
-        .hasMatch(l)) {
-      keys.add('interest_cultural_heritage');
-    if (RegExp(r'shop|mall|market|souven|تسوق').hasMatch(l)) {
-      keys.add('interest_shopping');
-    if (RegExp(r'food|restaurant|cafe|cuisine|dining|طعام').hasMatch(l)) {
-      keys.add('interest_trying_local_food');
-    if (RegExp(r'outdoor|adventure|hiking|beach|park|desert|طبيعة')
-        .hasMatch(l)) {
-      keys.add('interest_outdoor_adventures');
-    if (RegExp(r'relax|spa|wellness|resort').hasMatch(l)) {
-      keys.add('interest_relaxation');
-    if (RegExp(r'attraction|sight|landmark|explore').hasMatch(l)) {
-      keys.add('interest_local_attractions');
-    if (RegExp(r'leisure|night|entertain|game').hasMatch(l)) {
-      keys.add('interest_leisure');
-    if (RegExp(r'family|friend|social').hasMatch(l)) {
-      keys.add('interest_visiting_family_friends');
-    for (final k in keys) {
-      if (_matchesInterestKey(place, k)) return true;
-    final hay =
-        '${placeName(place)} ${placeAddress(place)} ${_placeTypesCategoryHaystack(place)}'
-    return hay.contains(l);
-  int _popularAggregateScore(
-    List<String> labels,
-    if (labels.isEmpty) return 0;
-    var score = 0;
-    for (final lb in labels) {
-      if (_tripInterestLabelMatchesPlace(lb, place)) score++;
-    return score;
-  void _sortHomePlacesByPopularInterestsThenRating(
-    List<dynamic> list,
-    List<String> popularLabels,
-    if (popularLabels.isEmpty) {
-      if (a is! Map || b is! Map) return 0;
-      final ma = Map<String, dynamic>.from(a);
-      final mb = Map<String, dynamic>.from(b);
-      final sa = _popularAggregateScore(ma, popularLabels);
-      final sb = _popularAggregateScore(mb, popularLabels);
-      if (sa != sb) return sb.compareTo(sa);
-    if (_lastLoadedHomeCity != null &&
-        _lastLoadedHomeCity!.toLowerCase() != cityClean.toLowerCase()) {
-      _clearHomeFilterSupplement();
-        homePlaces.isNotEmpty) {
-    if (!forceRefresh) {
-        final labels = await _fetchPopularTripInterestLabels();
-        _stripInvalidMapsFromDynamicList(homePlaces);
-        _sortHomePlacesByPopularInterestsThenRating(homePlaces, labels);
-      final popularLabels = await _fetchPopularTripInterestLabels();
-      homePlaces = merged.values.toList();
-      _stripInvalidMapsFromDynamicList(homePlaces);
-      _sortHomePlacesByPopularInterestsThenRating(homePlaces, popularLabels);
-      if (kDebugMode) {
-        debugPrint('TravelProvider.loadHome: $e');
-      error = searchFailureLocalizationKey;
-      final parsed = items
-      return List<dynamic>.from(_stripInvalidPlaceMapsFromList(parsed));
-      final parsed = items
-      return List<dynamic>.from(_stripInvalidPlaceMapsFromList(parsed));
-          .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
-          .map((e) => _slimPlaceForSearchCache(e))
-  void _clearHomeFilterSupplement() {
-    _homeFilterSupplementPlaces.clear();
-    _lastHomeFilterSupplementSignature = null;
-    homeCategoryFallbackLoading = false;
-    homeCategoryFallbackErrorKey = null;
-  /// Merges [homePlaces] with category supplement (deduped) for Home filter display.
-  List<dynamic> homeMergedSourceForFilters() {
-    if (_homeFilterSupplementPlaces.isEmpty) return homePlaces;
-    final byId = <String, Map<String, dynamic>>{};
-    void add(dynamic p) {
-      if (p is! Map) return;
-      final m = Map<String, dynamic>.from(p);
-      if (InvalidPlaceText.placeMapContainsErrorLikeStrings(m)) return;
-      final id = m['id']?.toString().trim();
-      final key = (id != null && id.isNotEmpty)
-          ? id
-          : '${m['formattedAddress']?.toString() ?? ''}|${m['location']?.toString() ?? ''}';
-      byId.putIfAbsent(key, () => m);
-    for (final p in homePlaces) {
-    for (final p in _homeFilterSupplementPlaces) {
-    return byId.values.toList();
-  /// Maps a Home filter chip key to a single low-cost Places text query (GCC box already in service).
-  static String? placesTextQueryForHomeCategory(String filterKey, String location) {
-    final loc = location.trim();
-    if (loc.isEmpty) return null;
-    final fk = filterKey.trim();
-    switch (fk) {
-      case 'filter_food_restaurants':
-      case 'Food & Restaurants':
-        return 'restaurants in $loc';
-      case 'filter_hotels_stays':
-      case 'Hotels & Stays':
-        return 'hotels lodging resorts in $loc';
-      case 'filter_museum':
-      case 'Museum':
-      case 'museum':
-        return 'museums in $loc';
-      case 'filter_culture_heritage':
-      case 'Culture & Heritage':
-        return 'museums mosques heritage landmarks cultural attractions in $loc';
-      case 'filter_shopping_souvenirs':
-      case 'Shopping & Souvenirs':
-        return 'shopping malls souks markets souvenir stores in $loc';
-      case 'filter_transportation':
-      case 'Transportation':
-        return 'bus stations airports train stations taxi stands car rental transport in $loc';
-        if (fk.startsWith('filter_')) {
-          final tail = fk.replaceFirst('filter_', '').replaceAll('_', ' ');
-          return '$tail places in $loc';
-        return 'tourist attractions $fk in $loc';
-  Future<void> syncHomeFilterSupplement(
-    String location,
-    List<String> filters, {
-    final loc = location.trim().isEmpty ? 'Oman' : location.trim();
-    homeCategoryFallbackErrorKey = null;
-    if (filters.isEmpty) {
-      _clearHomeFilterSupplement();
-    final base = filteredPlaces(
-      query: '',
-      filters: filters,
-      maxPrice: null,
-      priceSortBy: priceSortBy,
-      ratingSortBy: ratingSortBy,
-      sourceOverride: homePlaces,
-    if (base.isNotEmpty) {
-      _clearHomeFilterSupplement();
-    final sortedKeys = filters.map((e) => e.toLowerCase()).toList()..sort();
-    final sig = '${loc.toLowerCase()}|${sortedKeys.join(',')}';
-    if (sig == _lastHomeFilterSupplementSignature &&
-        _homeFilterSupplementPlaces.isNotEmpty) {
-    final rid = ++_homeFilterSupplementRequestId;
-    homeCategoryFallbackLoading = true;
-      final merged = <String, Map<String, dynamic>>{};
-      for (final fk in filters) {
-        final qText = placesTextQueryForHomeCategory(fk, loc);
-        if (qText == null || qText.trim().isEmpty) continue;
-        final cacheKey = '${loc.toLowerCase()}::${fk.toLowerCase()}';
-        final List<dynamic> chunk;
-        if (_homeCategoryTextSearchCache.containsKey(cacheKey)) {
-          chunk = _homeCategoryTextSearchCache[cacheKey]!;
-          _stripInvalidMapsFromDynamicList(chunk);
-          final raw = await _api.searchText(qText);
-          chunk = _onlyGcc(raw);
-          _stripInvalidMapsFromDynamicList(chunk);
-          _homeCategoryTextSearchCache[cacheKey] = chunk;
-          while (_homeCategoryTextSearchCache.length > _homeCategoryCacheMaxEntries) {
-            _homeCategoryTextSearchCache.remove(
-              _homeCategoryTextSearchCache.keys.first,
-        for (final item in chunk) {
-          final m = Map<String, dynamic>.from(item);
-          final pid = m['id']?.toString().trim();
-          final key = (pid != null && pid.isNotEmpty)
-              ? pid
-              : '${m['formattedAddress']?.toString() ?? ''}|${m['location']?.toString() ?? ''}';
-          merged.putIfAbsent(key, () => m);
-      if (rid != _homeFilterSupplementRequestId) return;
-      _homeFilterSupplementPlaces = merged.values.toList();
-      _stripInvalidMapsFromDynamicList(_homeFilterSupplementPlaces);
-      _lastHomeFilterSupplementSignature = sig;
-      if (kDebugMode) {
-        debugPrint('syncHomeFilterSupplement: $e');
-      if (rid != _homeFilterSupplementRequestId) return;
-      _homeFilterSupplementPlaces.clear();
-      homeCategoryFallbackErrorKey = searchFailureLocalizationKey;
-    } finally {
-      if (rid == _homeFilterSupplementRequestId) {
-        homeCategoryFallbackLoading = false;
-    searchLoading = true;
-    searchError = null;
-      final raw = query.trim();
-      if (raw.isEmpty) {
-        final qForApi = normalizePlacesSearchQuery(raw);
-        final keyNorm = qForApi.toLowerCase();
-        final memHit = _searchPlacesSessionCache[keyNorm];
-        if (memHit != null) {
-          searchPlaces = memHit.map(Map<String, dynamic>.from).toList();
-          addSearchHistory(qForApi, notify: false);
-          final cached = await _readSearchResultsCache(qForApi);
-            _rememberSearchSessionPlaces(keyNorm, searchPlaces);
-            addSearchHistory(qForApi, notify: false);
-            final results = await _api.searchText(qForApi);
-            _rememberSearchSessionPlaces(keyNorm, searchPlaces);
-            addSearchHistory(qForApi, notify: false);
-            unawaited(_writeSearchResultsCache(qForApi, searchPlaces));
-        _stripInvalidMapsFromDynamicList(searchPlaces);
-      searchError = _searchFailureLocalizationKeyFor(e);
-    searchLoading = false;
-  /// Clears Search-page results without calling remote APIs.
-  void clearSearchResults() {
-    searchError = null;
-    searchLoading = false;
-          .where((m) => !InvalidPlaceText.placeMapContainsErrorLikeStrings(m))
-  /// Search-page only: debounced caller should pass [sessionToken] from the page.
-  /// Results are cached in memory per normalized query for the app session.
-  Future<List<Map<String, dynamic>>> searchPageAutocompleteSuggestions({
-    required String sessionToken,
-    String? languageCode,
-    if (q.length < 3) return [];
-    final key = q.toLowerCase();
-    final hit = _searchAutocompleteCache[key];
-    if (hit != null) {
-      return hit
-          .where((row) {
-            final t = row['suggestionText']?.toString() ?? '';
-            return !InvalidPlaceText.isInvalid(t) &&
-                !InvalidPlaceText.placeMapContainsErrorLikeStrings(row);
-      final raw = await _api.autocomplete(
-        input: q,
-        sessionToken: sessionToken,
-        languageCode: languageCode,
-      final dedup = <String, Map<String, dynamic>>{};
-      for (final row in raw) {
-        final text = row['suggestionText']?.toString().trim() ?? '';
-        if (text.isEmpty) continue;
-        if (InvalidPlaceText.isInvalid(text)) continue;
-        final lk = text.toLowerCase();
-        dedup.putIfAbsent(lk, () => Map<String, dynamic>.from(row));
-      final list = dedup.values.take(10).toList();
-      _searchAutocompleteCache[key] = list;
-    if (InvalidPlaceText.isInvalid(text)) return;
-  void sanitizeUserFacingLists() {
-    final favBefore = favoritePlaces.length;
-    searchHistory.removeWhere(InvalidPlaceText.isInvalid);
-    recentlyViewed.removeWhere(InvalidPlaceText.placeMapContainsErrorLikeStrings);
-    favoritePlaces.removeWhere(InvalidPlaceText.placeMapContainsErrorLikeStrings);
-    _stripInvalidMapsFromDynamicList(homePlaces);
-    _stripInvalidMapsFromDynamicList(searchPlaces);
-    _stripInvalidMapsFromDynamicList(_homeFilterSupplementPlaces);
-    if (favoritePlaces.length != favBefore) {
-      unawaited(_persistFavoritesPrefsOnly());
-    if (InvalidPlaceText.placeMapContainsErrorLikeStrings(place)) return;
-    final title = placeName(place);
-    if (InvalidPlaceText.isInvalid(title)) return;
-    final currentId = place["id"]?.toString() ?? title.toLowerCase();
-      source = homePlaces;
-      if (InvalidPlaceText.placeMapContainsErrorLikeStrings(map)) continue;
-    } else if (dn is String) {
-      raw = dn;
-      raw = "";
-    if (raw.trim().isEmpty) {
-      final n = place["name"]?.toString().trim();
-      if (n != null && n.isNotEmpty) {
-        raw = n;
-    if (raw.trim().isEmpty) {
-      raw = "Unknown";
-    if (InvalidPlaceText.isInvalid(raw)) {
-      return 'Unknown';
-    final addr = place["formattedAddress"]?.toString() ?? "";
-    if (InvalidPlaceText.isInvalid(addr)) {
-    return addr;
-      if (text.isNotEmpty && !InvalidPlaceText.isInvalid(text)) return text;
-  /// Normalized governorate / admin-area key for same-day GCC rules (Oman-focused fallbacks).
-  String _governorateComparableKey(Map<String, dynamic> place) {
-    final stored = place['governorateKey']?.toString().trim();
-    if (stored != null && stored.isNotEmpty) {
-      return _normalizeGovernorateComparable(stored);
-    final fromComponents = _adminAreaLevel1FromAddressComponents(place['addressComponents']);
-    if (fromComponents.isNotEmpty) {
-      return _normalizeGovernorateComparable(fromComponents);
-    final fromAddr = _governorateFromFreeformAddress(addr);
-    if (fromAddr.isNotEmpty) return fromAddr;
-    var key = _omanLocalityToGovernorateKey(city);
-    if (key.isNotEmpty) return key;
-    key = _omanGovernorateFromAddressSegments(addr);
-    if (key.isNotEmpty) return key;
-    key = _omanLocalityToGovernorateKey(placeName(place));
-    return key;
-  String _normalizeGovernorateComparable(String raw) {
-    var s = raw.toLowerCase().trim();
-    s = s.replaceAll(RegExp(r'\s+'), ' ');
-    s = s.replaceAll(' governorate', '');
-    s = s.replaceAll('muḥāfaẓat', 'muhafazat');
-    s = s.replaceAll(RegExp(r'^محافظة\s*'), '');
-    s = s.replaceAll(RegExp(r'\s+'), '_');
-  String _adminAreaLevel1FromAddressComponents(dynamic raw) {
-    if (raw is! List) return '';
-    for (final item in raw) {
-      final types = item['types'];
-      if (types is! List) continue;
-      final typeStrs = types.map((e) => e.toString()).toList();
-      if (!typeStrs.contains('administrative_area_level_1')) continue;
-      final lt = item['longText']?.toString() ?? item['long_name']?.toString();
-      final st = item['shortText']?.toString() ?? item['short_name']?.toString();
-      if (lt != null && lt.trim().isNotEmpty) return lt.trim();
-      if (st != null && st.trim().isNotEmpty) return st.trim();
-  static const Map<String, String> _omanGovernoratePhraseKeys = {
-    'ash sharqiyah north governorate': 'ash_sharqiyah_north',
-    'ash sharqiyah south governorate': 'ash_sharqiyah_south',
-    'al batinah north governorate': 'al_batinah_north',
-    'al batinah south governorate': 'al_batinah_south',
-    'ad dakhiliyah governorate': 'ad_dakhiliyah',
-    'adh dakhiliyah governorate': 'ad_dakhiliyah',
-    'ad dhahirah governorate': 'ad_dhahirah',
-    'adh dhahirah governorate': 'ad_dhahirah',
-    'al buraimi governorate': 'al_buraimi',
-    'al wusta governorate': 'al_wusta',
-    'musandam governorate': 'musandam',
-    'dhofar governorate': 'dhofar',
-    'muscat governorate': 'muscat',
-    'محافظة شمال الشرقية': 'ash_sharqiyah_north',
-    'محافظة جنوب الشرقية': 'ash_sharqiyah_south',
-    'محافظة شمال الباطنة': 'al_batinah_north',
-    'محافظة جنوب الباطنة': 'al_batinah_south',
-    'محافظة الداخلية': 'ad_dakhiliyah',
-    'محافظة الظاهرة': 'ad_dhahirah',
-    'محافظة البريمي': 'al_buraimi',
-    'محافظة الوسطى': 'al_wusta',
-    'محافظة مسندم': 'musandam',
-    'محافظة ظفار': 'dhofar',
-    'محافظة مسقط': 'muscat',
-  String _governorateFromFreeformAddress(String address) {
-    if (address.isEmpty) return '';
-    final lower = address.toLowerCase();
-    final keys = _omanGovernoratePhraseKeys.keys.toList()
-      ..sort((a, b) => b.length.compareTo(a.length));
-    for (final phrase in keys) {
-      final isAscii = phrase.isNotEmpty && phrase.codeUnitAt(0) < 128;
-      final hit = isAscii ? lower.contains(phrase) : address.contains(phrase);
-      if (hit) return _omanGovernoratePhraseKeys[phrase]!;
-  static const Map<String, String> _omanLocalityGovernorateKeys = {
-    'seeb': 'muscat',
-    'as sib': 'muscat',
-    'sib': 'muscat',
-    'al seeb': 'muscat',
-    'muscat': 'muscat',
-    'muttrah': 'muscat',
-    'matrah': 'muscat',
-    'qurum': 'muscat',
-    'al qurum': 'muscat',
-    'ruwi': 'muscat',
-    'bawshar': 'muscat',
-    'al amerat': 'muscat',
-    'al aziba': 'muscat',
-    'al khuwair': 'muscat',
-    'ghubrah': 'muscat',
-    'ghala': 'muscat',
-    'al rusayl': 'muscat',
-    'madinat as sultan qaboos': 'muscat',
-    'al mouj': 'muscat',
-    'almouj': 'muscat',
-    'nizwa': 'ad_dakhiliyah',
-    'bahla': 'ad_dakhiliyah',
-    'adam': 'ad_dakhiliyah',
-    'manah': 'ad_dakhiliyah',
-    'al hamra': 'ad_dakhiliyah',
-    'izki': 'ad_dakhiliyah',
-    'bidbid': 'ad_dakhiliyah',
-    'samail': 'ad_dakhiliyah',
-    'sohar': 'al_batinah_north',
-    'shinas': 'al_batinah_north',
-    'liwa': 'al_batinah_north',
-    'saham': 'al_batinah_north',
-    'al khaburah': 'al_batinah_north',
-    'suwaiq': 'al_batinah_north',
-    'al awabi': 'al_batinah_south',
-    'nakhal': 'al_batinah_south',
-    'wadi al maawil': 'al_batinah_south',
-    'rustaq': 'al_batinah_south',
-    'barka': 'al_batinah_south',
-    'al musannah': 'al_batinah_south',
-    'ibra': 'ash_sharqiyah_north',
-    'bidiyah': 'ash_sharqiyah_north',
-    'al mudaybi': 'ash_sharqiyah_north',
-    'wadi bani khalid': 'ash_sharqiyah_north',
-    'sur': 'ash_sharqiyah_south',
-    'al kamil wal wafi': 'ash_sharqiyah_south',
-    'jalan': 'ash_sharqiyah_south',
-    'masirah': 'ash_sharqiyah_south',
-    'salalah': 'dhofar',
-    'taqah': 'dhofar',
-    'mirbat': 'dhofar',
-    'rakhyut': 'dhofar',
-    'thumrait': 'dhofar',
-    'sadh': 'dhofar',
-    'mughsayl': 'dhofar',
-    'dibba': 'musandam',
-    'khasab': 'musandam',
-    'bukha': 'musandam',
-    'haima': 'al_wusta',
-    'duqm': 'al_wusta',
-    'mahout': 'al_wusta',
-    'al jazer': 'al_wusta',
-    'ibri': 'ad_dhahirah',
-    'yanqul': 'ad_dhahirah',
-    'dhank': 'ad_dhahirah',
-    'al buraimi': 'al_buraimi',
-    'mahdah': 'al_buraimi',
-    'as sunaynah': 'al_buraimi',
-  String _omanLocalityToGovernorateKey(String raw) {
-    if (raw.isEmpty) return '';
-    final k = raw.toLowerCase().trim();
-    return _omanLocalityGovernorateKeys[k] ?? '';
-  String _omanGovernorateFromAddressSegments(String address) {
-    if (address.isEmpty) return '';
-    for (final seg in address.split(',')) {
-      final g = _omanLocalityToGovernorateKey(seg.trim());
-      if (g.isNotEmpty) return g;
