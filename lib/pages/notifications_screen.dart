@@ -343,6 +343,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                       size: 22,
                                     ),
                                   ),
+                                if (type == "shared_trip")
+                                  IconButton(
+                                    tooltip: context.tr("open_shared_itinerary"),
+                                    onPressed: () {
+                                      Navigator.pushNamed(context, "/shared_itinerary");
+                                    },
+                                    icon: Icon(
+                                      Icons.group_outlined,
+                                      color: theme.colorScheme.primary,
+                                      size: 22,
+                                    ),
+                                  ),
                               ],
                             ),
 
