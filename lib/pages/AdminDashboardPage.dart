@@ -821,7 +821,7 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            "Trips: $tripsCount",
+                            "${context.tr('preferences')}: $tripsCount",
                             style: const TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
