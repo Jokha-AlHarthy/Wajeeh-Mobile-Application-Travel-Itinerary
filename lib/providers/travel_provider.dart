@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/google_keys.dart';
+import '../services/notification_service.dart';
 import '../services/places_service.dart';
 import '../services/price_extraction_service.dart';
 import '../utils/ai_trip_plan_markdown_parser.dart';
@@ -1847,6 +1848,13 @@ class TravelProvider extends ChangeNotifier {
         },
         SetOptions(merge: true),
       );
+      await NotificationService.addNotificationForUser(
+        userId: receiverUid,
+        title: "Trip Shared With You",
+        message: "Someone shared a trip itinerary with you.",
+        type: "shared_trip",
+        tripId: entry['sharedEntryId']?.toString(),
+      );
       if (kDebugMode) {
         debugPrint(
           'TravelProvider share: Firestore arrayUnion ok sharedEntryId=${entry['sharedEntryId']}',
@@ -1882,6 +1890,14 @@ class TravelProvider extends ChangeNotifier {
             SetOptions(merge: true),
           );
         });
+        await NotificationService.addNotificationForUser(
+          userId: receiverUid,
+          title: "Trip Shared With You",
+          message: "Someone shared a trip itinerary with you.",
+          type: "shared_trip",
+          tripId: entry['sharedEntryId']?.toString(),
+        );
+
         if (kDebugMode) {
           debugPrint(
             'TravelProvider share: Firestore transaction append ok '
