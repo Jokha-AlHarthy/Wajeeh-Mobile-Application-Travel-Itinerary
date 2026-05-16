@@ -8,6 +8,7 @@ import '../localization/app_localizations.dart';
 import '../providers/auth_provider.dart';
 import '../providers/travel_provider.dart';
 import '../services/itinerary_walkthrough.dart';
+import '../services/plan_place_trip_flow.dart';
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -116,6 +117,15 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
         final w = ItineraryWalkthroughController.instance;
         w.showIfNeeded(context);
       });
+
+      if (travel.pendingPlanPlace != null &&
+          travel.tripPlanItineraryActive &&
+          travel.tripPlanDayCount > 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          runPendingPlanPlaceFlowIfNeeded(context);
+        });
+      }
     });
   }
 
@@ -125,12 +135,16 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
         ? _startDate!
         : today;
 
-    final picked = await showDatePicker(
-      context: context,
-      locale: Localizations.localeOf(context),
-      initialDate: initial,
-      firstDate: today,
-      lastDate: DateTime(2035),
+    final walkthrough = ItineraryWalkthroughController.instance;
+    final picked = await walkthrough.runWithModalHidden(
+      context,
+      () => showDatePicker(
+        context: context,
+        locale: Localizations.localeOf(context),
+        initialDate: initial,
+        firstDate: today,
+        lastDate: DateTime(2035),
+      ),
     );
 
     if (picked != null) {
@@ -151,15 +165,10 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
         _endDate,
       );
 
-      final walkthrough = ItineraryWalkthroughController.instance;
       walkthrough.onDatesSelected(
         hasStart: _startDate != null,
         hasEnd: _endDate != null,
       );
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        walkthrough.showIfNeeded(context);
-      });
     }
   }
 
@@ -177,12 +186,16 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
         ? _endDate!
         : firstAllowed;
 
-    final picked = await showDatePicker(
-      context: context,
-      locale: Localizations.localeOf(context),
-      initialDate: initial,
-      firstDate: firstAllowed,
-      lastDate: DateTime(2035),
+    final walkthrough = ItineraryWalkthroughController.instance;
+    final picked = await walkthrough.runWithModalHidden(
+      context,
+      () => showDatePicker(
+        context: context,
+        locale: Localizations.localeOf(context),
+        initialDate: initial,
+        firstDate: firstAllowed,
+        lastDate: DateTime(2035),
+      ),
     );
 
     if (picked != null) {
@@ -198,15 +211,10 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
         _endDate,
       );
 
-      final walkthrough = ItineraryWalkthroughController.instance;
       walkthrough.onDatesSelected(
         hasStart: _startDate != null,
         hasEnd: _endDate != null,
       );
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        walkthrough.showIfNeeded(context);
-      });
     }
   }
 
@@ -246,6 +254,13 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
       if (!mounted) return;
       walkthrough.showIfNeeded(context);
     });
+
+    if (travel.pendingPlanPlace != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        runPendingPlanPlaceFlowIfNeeded(context);
+      });
+    }
   }
 
   void _goToHomeAndSelectAttraction() {
