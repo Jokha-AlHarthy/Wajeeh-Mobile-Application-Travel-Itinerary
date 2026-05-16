@@ -808,6 +808,9 @@ class TravelProvider extends ChangeNotifier {
   /// User-visible trip name (draft + save).
   String tripPlanTripName = '';
 
+  String? lastSavedTripId;
+
+
   /// When non-null, [saveCurrentItinerary] updates the existing trip with this id.
   String? _editingSavedTripId;
 
@@ -2108,6 +2111,8 @@ class TravelProvider extends ChangeNotifier {
       trip['createdAt'] = nowIso;
       savedTrips.insert(0, trip);
     }
+
+    lastSavedTripId = trip['id']?.toString();
 
     await _persistSavedTrips();
 
