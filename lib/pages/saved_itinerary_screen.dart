@@ -43,6 +43,52 @@ class _SavedItineraryScreenState extends State<SavedItineraryScreen> {
     );
   }
 
+  Future<void> _onUnsaveOfflinePressed(
+    BuildContext context,
+    Map<String, dynamic> trip,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(ctx.tr('remove_offline_itinerary_title')),
+        content: Text(ctx.tr('remove_offline_itinerary_message')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(ctx.tr('cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+              foregroundColor: Theme.of(ctx).colorScheme.onError,
+            ),
+            child: Text(ctx.tr('unsave_offline')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !context.mounted) return;
+
+    final travel = context.read<TravelProvider>();
+    final removed = await travel.removeItineraryOffline(trip);
+
+    if (!context.mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          context.tr(
+            removed
+                ? 'itinerary_removed_offline_success'
+                : 'itinerary_remove_offline_failed',
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -121,109 +167,149 @@ class _SavedItineraryScreenState extends State<SavedItineraryScreen> {
                   final rawName = t['tripName']?.toString().trim() ?? '';
                   final tripTitle = rawName.isNotEmpty ? rawName : cityLine;
 
-                  return InkWell(
-                    borderRadius: BorderRadius.circular(16),
-                    onTap: () => _openTripDetail(context, t),
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: theme.brightness == Brightness.light
-                            ? Colors.white.withValues(alpha: 0.65)
-                            : cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: borderColor, width: 1),
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: image.isNotEmpty
-                                ? Image.network(
-                                    image,
-                                    width: 72,
-                                    height: 72,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      width: 72,
-                                      height: 72,
-                                      color: placeholderFill,
-                                      child: Icon(
-                                        Icons.image_outlined,
-                                        color: mutedText,
-                                      ),
-                                    ),
-                                  )
-                                : Container(
-                                    width: 72,
-                                    height: 72,
-                                    color: placeholderFill,
-                                    child: Icon(
-                                      Icons.image_outlined,
-                                      color: mutedText,
-                                    ),
-                                  ),
+                  final errorColor = theme.colorScheme.error;
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: theme.brightness == Brightness.light
+                          ? Colors.white.withValues(alpha: 0.65)
+                          : cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor, width: 1),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        InkWell(
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(16),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
+                          onTap: () => _openTripDetail(context, t),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        tripTitle,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.w800,
-                                          color: onSurface,
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: image.isNotEmpty
+                                      ? Image.network(
+                                          image,
+                                          width: 72,
+                                          height: 72,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) =>
+                                              Container(
+                                            width: 72,
+                                            height: 72,
+                                            color: placeholderFill,
+                                            child: Icon(
+                                              Icons.image_outlined,
+                                              color: mutedText,
+                                            ),
+                                          ),
+                                        )
+                                      : Container(
+                                          width: 72,
+                                          height: 72,
+                                          color: placeholderFill,
+                                          child: Icon(
+                                            Icons.image_outlined,
+                                            color: mutedText,
+                                          ),
                                         ),
-                                      ),
-                                    ),
-                                    if (dateLine.isNotEmpty)
-                                      Text(
-                                        dateLine,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w500,
-                                          color: mutedText,
-                                        ),
-                                      ),
-                                  ],
                                 ),
-                                const SizedBox(height: 6),
-                                if (countryLine.isNotEmpty)
-                                  Text(
-                                    countryLine,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: mutedText,
-                                      height: 1.2,
-                                    ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              tripTitle,
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: theme.textTheme.titleMedium
+                                                  ?.copyWith(
+                                                fontWeight: FontWeight.w800,
+                                                color: onSurface,
+                                              ),
+                                            ),
+                                          ),
+                                          if (dateLine.isNotEmpty)
+                                            Text(
+                                              dateLine,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                                color: mutedText,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+                                      if (countryLine.isNotEmpty)
+                                        Text(
+                                          countryLine,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: mutedText,
+                                            height: 1.2,
+                                          ),
+                                        ),
+                                      if (cityLine.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          cityLine,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            color: mutedText,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
                                   ),
-                                if (cityLine.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    cityLine,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      color: mutedText,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
+                                ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.chevron_right,
+                                  color: theme.colorScheme.primary,
+                                ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 4),
-                          Icon(Icons.chevron_right, color: theme.colorScheme.primary),
-                        ],
-                      ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                          child: OutlinedButton(
+                            onPressed: () => _onUnsaveOfflinePressed(context, t),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: errorColor,
+                              side: BorderSide(color: errorColor, width: 1.5),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: Text(
+                              context.tr('unsave_offline'),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   );
                 },
