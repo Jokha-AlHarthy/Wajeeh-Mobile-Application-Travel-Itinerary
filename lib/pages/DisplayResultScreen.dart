@@ -7,6 +7,7 @@ import '../localization/app_localizations.dart';
 import '../models/place_review_preview.dart';
 import '../providers/travel_provider.dart';
 import '../services/itinerary_walkthrough.dart';
+import '../services/plan_place_trip_flow.dart';
 import '../services/user_location_helper.dart';
 import '../utils/gmail_compose.dart';
 import '../utils/haversine_km.dart';
@@ -1252,18 +1253,14 @@ Future<void> _runPlacePdfDownload(
     if (!context.mounted) return;
     switch (outcome) {
       case PdfSaveOutcome.savedToChosenPath:
+      case PdfSaveOutcome.presentedShareSheet:
         messenger.showSnackBar(
-          SnackBar(content: Text(context.tr('pdf_saved'))),
+          SnackBar(content: Text(context.tr('pdf_downloaded_successfully'))),
         );
         break;
       case PdfSaveOutcome.cancelledByUser:
         messenger.showSnackBar(
           SnackBar(content: Text(context.tr('pdf_save_cancelled'))),
-        );
-        break;
-      case PdfSaveOutcome.presentedShareSheet:
-        messenger.showSnackBar(
-          SnackBar(content: Text(context.tr('pdf_share_pick_destination'))),
         );
         break;
     }
@@ -1275,267 +1272,10 @@ Future<void> _runPlacePdfDownload(
   }
 }
 
-/// Multi-day selection for the place; stays on current screen (no navigation).
+/// Plan button: draft trip → day/time sheet; otherwise existing vs new trip flow.
 Future<void> handlePlanTap(
   BuildContext screenContext,
   Map<String, dynamic> place,
 ) async {
-  final travel = screenContext.read<TravelProvider>();
-  final theme = Theme.of(screenContext);
-  final walkthrough = ItineraryWalkthroughController.instance;
-
-  if (!travel.tripPlanItineraryActive || travel.tripPlanDayCount == 0) {
-    final shouldStart = await walkthrough.shouldAutoStart(
-      hasTripHistory: travel.savedTrips.isNotEmpty,
-    );
-
-    if (!screenContext.mounted) return;
-
-    Navigator.pushNamedAndRemoveUntil(
-      screenContext,
-      '/trip_planing',
-      (route) => false,
-      arguments: <String, dynamic>{
-        if (shouldStart) 'startWalkthrough': true,
-        'source': 'plan_without_trip',
-      },
-    );
-
-    walkthrough.pendingSnackBarMessage =
-        screenContext.tr('create_trip_first_snackbar');
-    return;
-  }
-
-  walkthrough.onPlanSheetOpened();
-
-  final daySelectorKey = GlobalKey();
-  final saveBtnKey = GlobalKey();
-  walkthrough.planSheetDaySelectorKey = daySelectorKey;
-  walkthrough.planSheetSaveButtonKey = saveBtnKey;
-
-  showModalBottomSheet<void>(
-    context: screenContext,
-    isScrollControlled: true,
-    backgroundColor: theme.cardTheme.color ?? theme.colorScheme.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-    ),
-    builder: (ctx) {
-      final selected = <int>{};
-
-      return StatefulBuilder(
-        builder: (_, setModalState) {
-          final maxH = MediaQuery.sizeOf(ctx).height * 0.55;
-
-          return SafeArea(
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                12,
-                20,
-                24 + MediaQuery.paddingOf(ctx).bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade400,
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    ctx.tr('choose_days_for_place'),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                      color: theme.colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ConstrainedBox(
-                    key: daySelectorKey,
-                    constraints: BoxConstraints(maxHeight: maxH),
-                    child: ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: travel.tripPlanDayCount,
-                      itemBuilder: (_, i) {
-                        final day = i + 1;
-                        final isOn = selected.contains(day);
-                        return CheckboxListTile(
-                          value: isOn,
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.platform,
-                          title: Text(
-                            '${ctx.tr('day')} $day',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          onChanged: (v) {
-                            setModalState(() {
-                              if (v == true) {
-                                selected.add(day);
-                              } else {
-                                selected.remove(day);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    height: 48,
-                    child: FilledButton(
-                      key: saveBtnKey,
-                      onPressed: selected.isEmpty
-                          ? null
-                          : () async {
-                              final sorted = selected.toList()..sort();
-                              Navigator.pop(ctx);
-
-                              var allSuccess = true;
-
-                              for (final d in sorted) {
-                                if (!screenContext.mounted) return;
-
-                                final isHotelPlace = travel.isHotel(place);
-
-                                if (isHotelPlace) {
-                                  final success = travel.addPlaceToTripDay(
-                                    d,
-                                    place,
-                                    hotelStayOnDay: true,
-                                  );
-
-                                  if (!success) {
-                                    allSuccess = false;
-                                    final msg = travel.error != null
-                                        ? screenContext.tr(travel.error!)
-                                        : screenContext.tr('error_generic');
-                                    travel.error = null;
-                                    if (!screenContext.mounted) return;
-                                    ScaffoldMessenger.of(screenContext)
-                                        .showSnackBar(
-                                      SnackBar(content: Text(msg)),
-                                    );
-                                    break;
-                                  }
-                                } else {
-                                  final initial = TimeOfDay.fromDateTime(
-                                    DateTime(
-                                      2000,
-                                      1,
-                                      1,
-                                      9,
-                                      0,
-                                    ),
-                                  );
-
-                                  final picked = await showTimePicker(
-                                    context: screenContext,
-                                    initialTime: initial,
-                                  );
-
-                                  if (!screenContext.mounted) return;
-
-                                  if (picked == null) {
-                                    allSuccess = false;
-                                    break;
-                                  }
-
-                                  final mins =
-                                      picked.hour * 60 + picked.minute;
-
-                                  final success = travel.addPlaceToTripDay(
-                                    d,
-                                    place,
-                                    scheduledTimeMinutes: mins,
-                                  );
-
-                                  if (!success) {
-                                    allSuccess = false;
-                                    final msg = travel.error != null
-                                        ? screenContext.tr(travel.error!)
-                                        : screenContext.tr('error_generic');
-                                    travel.error = null;
-                                    if (!screenContext.mounted) return;
-                                    ScaffoldMessenger.of(screenContext)
-                                        .showSnackBar(
-                                      SnackBar(content: Text(msg)),
-                                    );
-                                    break;
-                                  }
-                                }
-                              }
-
-                              if (!screenContext.mounted) return;
-
-                              if (allSuccess) {
-                                await walkthrough.markCompleted();
-                                if (!screenContext.mounted) return;
-                                walkthrough.onPlanSheetSaved();
-                                travel.disablePlanningMode();
-
-                                final everyDayFilled =
-                                    travel.isTripPlanItineraryEveryDayFilled;
-
-                                final addedMsg =
-                                    screenContext.tr('place_added_success_snackbar');
-                                walkthrough.pendingSnackBarMessage = addedMsg;
-
-                                if (!everyDayFilled) {
-                                  final requiredMsg = screenContext.tr(
-                                    'place_added_each_day_required_snackbar',
-                                  );
-                                  walkthrough.pendingSnackBarMessage =
-                                      '$addedMsg\n$requiredMsg';
-                                }
-
-                                if (!screenContext.mounted) return;
-
-                                Navigator.pushNamedAndRemoveUntil(
-                                  screenContext,
-                                  '/trip_planing',
-                                  (route) => false,
-                                  arguments: const <String, dynamic>{
-                                    'source': 'place_saved_return',
-                                  },
-                                );
-                              }
-                            },
-                      style: FilledButton.styleFrom(
-                        backgroundColor: theme.colorScheme.primary,
-                        foregroundColor: theme.colorScheme.onPrimary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        ctx.tr('save'),
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      );
-    },
-  );
-
-  // Show step 6 coach marks after the bottom sheet is built.
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (!screenContext.mounted) return;
-    walkthrough.showIfNeeded(screenContext);
-  });
+  await runPlanPlaceToTripFlow(screenContext, place);
 }
