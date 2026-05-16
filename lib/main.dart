@@ -38,6 +38,7 @@ import 'pages/notifications_screen.dart';
 import 'pages/language_screen.dart';
 import 'pages/profile_screen.dart';
 import 'pages/trip_history.dart';
+import 'pages/shared_itinerary_screen.dart';
 //import 'pages/trip_detail_screen.dart';
 //import 'pages/rate_screen.dart';
 import 'pages/FavoritePage.dart';
@@ -54,8 +55,9 @@ import 'services/internet_connectivity.dart';
 /// Injected at build/run time — do **not** hardcode keys in source.
 /// Example: `flutter run --dart-define=GEMINI_API_KEY=...`
 const String _kGeminiApiKeyFromEnv = String.fromEnvironment('GEMINI_API_KEY');
-const String _kOpenRouteServiceKeyFromEnv =
-    String.fromEnvironment('OPENROUTESERVICE_API_KEY');
+const String _kOpenRouteServiceKeyFromEnv = String.fromEnvironment(
+  'OPENROUTESERVICE_API_KEY',
+);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -75,20 +77,15 @@ Future<void> main() async {
   }
 
   runApp(
-    MyApp(
-      themeProvider: themeProvider,
-      languageProvider: languageProvider,
-    ),
+    MyApp(themeProvider: themeProvider, languageProvider: languageProvider),
   );
 }
 
 class MyApp extends StatelessWidget {
   final ThemeProvider themeProvider;
   final LanguageProvider languageProvider;
-  static final ValueNotifier<String?> _routeName =
-      ValueNotifier<String?>(null);
-  static final RouteNameObserver _routeObserver =
-      RouteNameObserver(_routeName);
+  static final ValueNotifier<String?> _routeName = ValueNotifier<String?>(null);
+  static final RouteNameObserver _routeObserver = RouteNameObserver(_routeName);
 
   const MyApp({
     super.key,
@@ -104,11 +101,13 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: languageProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => TravelProvider()),
-        ChangeNotifierProvider(create: (_) {
-          final ai = AiChatService();
-          ai.maybeConfigureFromEnvironment();
-          return ai;
-        }),
+        ChangeNotifierProvider(
+          create: (_) {
+            final ai = AiChatService();
+            ai.maybeConfigureFromEnvironment();
+            return ai;
+          },
+        ),
       ],
       child: _TravelUserScope(
         child: Consumer2<ThemeProvider, LanguageProvider>(
@@ -118,100 +117,101 @@ class MyApp extends StatelessWidget {
                   ? TextDirection.rtl
                   : TextDirection.ltr,
               child: MaterialApp(
-              navigatorKey: wajeehRootNavigatorKey,
-              theme: AppTheme.buildTheme(theme),
-              debugShowCheckedModeBanner: false,
-              locale: language.locale,
-              supportedLocales: const [Locale('en'), Locale('ar')],
-              localizationsDelegates: const [
-                AppLocalizations.delegate,
-                GlobalMaterialLocalizations.delegate,
-                GlobalWidgetsLocalizations.delegate,
-                GlobalCupertinoLocalizations.delegate,
-              ],
-              navigatorObservers: [_routeObserver],
-              builder: (context, child) => UserAiChatOverlay(
-                routeNameListenable: _routeName,
-                geminiApiKey: _kGeminiApiKeyFromEnv.isEmpty
-                    ? null
-                    : _kGeminiApiKeyFromEnv,
-                openRouteServiceApiKey: _kOpenRouteServiceKeyFromEnv.isEmpty
-                    ? null
-                    : _kOpenRouteServiceKeyFromEnv,
-                child: child ?? const SizedBox.shrink(),
+                navigatorKey: wajeehRootNavigatorKey,
+                theme: AppTheme.buildTheme(theme),
+                debugShowCheckedModeBanner: false,
+                locale: language.locale,
+                supportedLocales: const [Locale('en'), Locale('ar')],
+                localizationsDelegates: const [
+                  AppLocalizations.delegate,
+                  GlobalMaterialLocalizations.delegate,
+                  GlobalWidgetsLocalizations.delegate,
+                  GlobalCupertinoLocalizations.delegate,
+                ],
+                navigatorObservers: [_routeObserver],
+                builder: (context, child) => UserAiChatOverlay(
+                  routeNameListenable: _routeName,
+                  geminiApiKey: _kGeminiApiKeyFromEnv.isEmpty
+                      ? null
+                      : _kGeminiApiKeyFromEnv,
+                  openRouteServiceApiKey: _kOpenRouteServiceKeyFromEnv.isEmpty
+                      ? null
+                      : _kOpenRouteServiceKeyFromEnv,
+                  child: child ?? const SizedBox.shrink(),
+                ),
+                home: Theme(
+                  data: AppTheme.originalLight,
+                  child: const _StartupRouter(),
+                ),
+                routes: {
+                  "/register": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const RegisterPage(),
+                  ),
+                  "/login": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const LoginPage(),
+                  ),
+                  "/home": (_) => const HomePage(),
+                  "/forgot": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const ForgotPasswordPage(),
+                  ),
+                  "/welcome": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const WelcomePage(),
+                  ),
+                  "/onboarding2": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const OnboardingScreenTwo(),
+                  ),
+                  "/onboarding3": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const OnboardingScreenThree(),
+                  ),
+                  "/privacy": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const PrivacyPolicyPage(),
+                  ),
+                  "/terms": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const TermsPage(),
+                  ),
+                  "/language": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const LanguageSelectionPage(),
+                  ),
+                  "/location": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const LocationSelectionPage(),
+                  ),
+                  "/otp": (_) => Theme(
+                    data: AppTheme.originalLight,
+                    child: const OtpVerificationPage(),
+                  ),
+                  "/search": (_) => const SearchPage(),
+                  "/setting": (_) => const SettingPage(),
+                  "/ChangePass": (_) => const ChangePass(),
+                  "/adminHome": (_) => const AdminHomePage(),
+                  "/adminProfile": (_) => const AdminProfilePage(),
+                  "/user_feedback": (_) => const UserFeedbackScreen(),
+                  "/editLocation": (_) => const EditLocationScreen(),
+                  "/notifications": (_) => const NotificationsScreen(),
+                  "/languagePreference": (_) => const LanguageScreen(),
+                  "/profile": (_) => const ProfileScreen(),
+                  "/trip_history": (_) => const TripHistory(),
+                  //"/trip_detail":(_)=>const TripDetailScreen(),
+                  //"/rate":(_)=>const RateScreen(),
+                  "/favorite": (_) => const FavoritePage(),
+                  "/adminContent": (_) => const AdminContentPage(),
+                  "/adminDashboard": (_) => const AdminDashboardPage(),
+                  "/adminFeedback": (_) => const AdminFeedbackManage(),
+                  "/trip_planing": (_) => const TripPlanScreen(),
+                  "/shared_itinerary": (_) => const SharedItineraryScreen(),
+                },
               ),
-              home: Theme(
-                data: AppTheme.originalLight,
-                child: const _StartupRouter(),
-              ),
-              routes: {
-          "/register": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const RegisterPage(),
-          ),
-          "/login": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const LoginPage(),
-          ),
-          "/home": (_) => const HomePage(),
-          "/forgot": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const ForgotPasswordPage(),
-          ),
-          "/welcome": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const WelcomePage(),
-          ),
-          "/onboarding2": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const OnboardingScreenTwo(),
-          ),
-          "/onboarding3": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const OnboardingScreenThree(),
-          ),
-          "/privacy": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const PrivacyPolicyPage(),
-          ),
-          "/terms": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const TermsPage(),
-          ),
-          "/language":(_)=> Theme(
-            data: AppTheme.originalLight,
-            child: const LanguageSelectionPage(),
-          ),
-          "/location": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const LocationSelectionPage(),
-          ),
-          "/otp": (_) => Theme(
-            data: AppTheme.originalLight,
-            child: const OtpVerificationPage(),
-          ),
-          "/search": (_) => const SearchPage(),
-          "/setting": (_) => const SettingPage(),
-          "/ChangePass": (_) => const ChangePass(),
-          "/adminHome": (_) => const AdminHomePage(),
-          "/adminProfile": (_) => const AdminProfilePage(),
-          "/user_feedback":(_)=>const UserFeedbackScreen(),
-          "/editLocation": (_) => const EditLocationScreen(),
-          "/notifications":(_)=>const NotificationsScreen(),
-          "/languagePreference":(_)=> const LanguageScreen(),
-          "/profile":(_)=> const ProfileScreen(),
-          "/trip_history":(_)=>const TripHistory(),
-          //"/trip_detail":(_)=>const TripDetailScreen(),
-          //"/rate":(_)=>const RateScreen(),
-          "/favorite":(_)=> const FavoritePage(),
-          "/adminContent":(_)=> const AdminContentPage(),
-          "/adminDashboard":(_)=> const AdminDashboardPage(),
-          "/adminFeedback":(_)=> const AdminFeedbackManage(),
-          "/trip_planing":(_)=>const TripPlanScreen(),
-        },
-            ),
-          );
-        },
+            );
+          },
         ),
       ),
     );
@@ -235,13 +235,11 @@ class _TravelUserScopeState extends State<_TravelUserScope> {
   void initState() {
     super.initState();
     final travel = context.read<TravelProvider>();
-    Future<void> applyUser(User? user) =>
-        travel.setStorageUserId(user?.uid);
+    Future<void> applyUser(User? user) => travel.setStorageUserId(user?.uid);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       applyUser(FirebaseAuth.instance.currentUser);
     });
-    _authSub =
-        FirebaseAuth.instance.authStateChanges().listen(applyUser);
+    _authSub = FirebaseAuth.instance.authStateChanges().listen(applyUser);
   }
 
   @override
@@ -306,20 +304,19 @@ class _StartupRouterState extends State<_StartupRouter> {
                     context.tr('offline_no_saved_title'),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     context.tr('offline_no_saved_body'),
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.65),
-                          height: 1.35,
-                        ),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.65),
+                      height: 1.35,
+                    ),
                   ),
                 ],
               ),
