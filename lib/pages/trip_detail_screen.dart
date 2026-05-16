@@ -10,7 +10,6 @@ import '../utils/pdf_download.dart';
 import '../utils/trip_detail_shared_text.dart';
 import '../utils/trip_pdf_export.dart';
 import 'notifications_screen.dart';
-import 'rate_screen.dart';
 
 /// Saved itinerary detail (from trip history): real [days] activities, package line, status.
 class TripDetailScreen extends StatelessWidget {
@@ -247,8 +246,8 @@ class TripDetailScreen extends StatelessWidget {
           child: Text(
             text,
             textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+            maxLines: 3,
+            softWrap: true,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -827,62 +826,44 @@ class TripDetailScreen extends StatelessWidget {
                       const SizedBox(height: 8),
                       ..._buildActivityBlocks(context, travel),
                       const SizedBox(height: 8),
-                      Row(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          _roundedButton(
-                            context,
-                            context.tr('save_itinerary_offline'),
-                            theme.colorScheme.primary,
-                            onPressed: () => _onSaveOfflinePressed(context),
+                          Row(
+                            children: [
+                              _roundedButton(
+                                context,
+                                context.tr('save_itinerary_offline'),
+                                theme.colorScheme.primary,
+                                onPressed: () => _onSaveOfflinePressed(context),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          _roundedButton(
-                            context,
-                            context.tr('download_pdf'),
-                            theme.colorScheme.primary,
-                            onPressed: () => _downloadTripPdf(context, trip),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              _roundedButton(
+                                context,
+                                context.tr('download_pdf'),
+                                theme.colorScheme.primary,
+                                onPressed: () => _downloadTripPdf(context, trip),
+                              ),
+                              if (!isSharedInboxEntry) ...[
+                                const SizedBox(width: 8),
+                                _roundedButton(
+                                  context,
+                                  context.tr('delete_itinerary'),
+                                  theme.colorScheme.error,
+                                  onPressed: () =>
+                                      _onDeleteItineraryPressed(context),
+                                ),
+                              ],
+                            ],
                           ),
-                          if (!isSharedInboxEntry) ...[
-                            const SizedBox(width: 8),
-                            _roundedButton(
-                              context,
-                              context.tr('delete_itinerary'),
-                              theme.colorScheme.error,
-                              onPressed: () =>
-                                  _onDeleteItineraryPressed(context),
-                            ),
-                          ],
                         ],
                       ),
                     ],
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    opaque: false,
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        RateScreen(
-                      placeTitle: title,
-                      country: country,
-                      rating: rating,
-                      image: image,
-                    ),
-                  ),
-                );
-              },
-              child: Text(
-                context.tr('done_now_judge_us'),
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  decoration: TextDecoration.underline,
-                  color: theme.colorScheme.primary,
                 ),
               ),
             ),
@@ -1073,18 +1054,14 @@ Future<void> _downloadTripPdf(
     if (!context.mounted) return;
     switch (outcome) {
       case PdfSaveOutcome.savedToChosenPath:
+      case PdfSaveOutcome.presentedShareSheet:
         messenger.showSnackBar(
-          SnackBar(content: Text(context.tr('pdf_saved'))),
+          SnackBar(content: Text(context.tr('pdf_downloaded_successfully'))),
         );
         break;
       case PdfSaveOutcome.cancelledByUser:
         messenger.showSnackBar(
           SnackBar(content: Text(context.tr('pdf_save_cancelled'))),
-        );
-        break;
-      case PdfSaveOutcome.presentedShareSheet:
-        messenger.showSnackBar(
-          SnackBar(content: Text(context.tr('pdf_share_pick_destination'))),
         );
         break;
     }
