@@ -606,5 +606,6 @@
   "view_trip_details": "عرض تفاصيل الرحلة",
   "trip_not_found": "لم يتم العثور على الرحلة",
   "trip_plan_saved_with_details": "تم حفظ رحلة \"{tripName}\" بنجاح. تبدأ بتاريخ {startDate} وتنتهي بتاريخ {endDate}.",
-  "your_trip": "رحلتك"
+  "your_trip": "رحلتك",
+  "open_shared_itinerary": "فتح الرحلات المشتركة"
 }
