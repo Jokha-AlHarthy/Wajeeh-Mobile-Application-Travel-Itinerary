@@ -38,4 +38,35 @@ class NotificationService {
       "tripId": tripId,
     });
   }
+
+  static Future<void> addNotificationForUser({
+    required String userId,
+    required String title,
+    required String message,
+    required String type,
+    DateTime? scheduledAt,
+    String? tripId,
+  }) async {
+    try {
+      print("TRY CREATE SHARED NOTIFICATION FOR USER: $userId");
+
+      final doc = await FirebaseFirestore.instance.collection("notifications").add({
+        "userId": userId,
+        "title": title,
+        "message": message,
+        "type": type,
+        "isRead": false,
+        "createdAt": Timestamp.now(),
+        "scheduledAt":
+        scheduledAt != null ? Timestamp.fromDate(scheduledAt) : null,
+        "tripId": tripId,
+      });
+
+      print("SHARED NOTIFICATION CREATED: ${doc.id}");
+    } catch (e) {
+      print("FAILED TO CREATE SHARED NOTIFICATION: $e");
+    }
+  }
 }
+
+
