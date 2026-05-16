@@ -557,5 +557,6 @@
   "view_trip_details": "View Trip Details",
   "trip_not_found": "Trip not found",
   "trip_plan_saved_with_details": "Your trip \"{tripName}\" has been saved successfully. It starts on {startDate} and ends on {endDate}.",
-  "your_trip": "Your Trip"
+  "your_trip": "Your Trip",
+  "open_shared_itinerary": "Open Shared Itinerary"
 }
