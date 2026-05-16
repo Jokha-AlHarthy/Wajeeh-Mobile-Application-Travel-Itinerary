@@ -14,6 +14,8 @@ import '../services/places_service.dart';
 import '../services/price_extraction_service.dart';
 import '../utils/ai_trip_plan_markdown_parser.dart';
 import '../utils/invalid_place_text.dart';
+import '../utils/saved_trip_extensions.dart';
+import '../utils/trip_day_distance_validation.dart';
 
 /// Converts Firestore-typed values ([Timestamp], [GeoPoint], …) and strips binary
 /// ([Uint8List], [Blob], [TypedData]) so [jsonEncode] stays small and Firestore writes succeed.
@@ -652,6 +654,7 @@ class TravelProvider extends ChangeNotifier {
     tripPlanPlacesByDay = {};
     tripPlanTripName = '';
     _editingSavedTripId = null;
+    pendingPlanPlace = null;
   }
 
   void _applyTravelDataFromFirestore(Map<String, dynamic> data) {
@@ -910,6 +913,25 @@ class TravelProvider extends ChangeNotifier {
   /// Manual trip planner: max activities + hotel rows per calendar day.
   static const int maxManualPlacesPerTripDay = 7;
 
+  /// Place queued from Display → Create New Trip until added to a day.
+  Map<String, dynamic>? pendingPlanPlace;
+
+  void setPendingPlanPlace(Map<String, dynamic>? place) {
+    pendingPlanPlace =
+        place == null ? null : Map<String, dynamic>.from(place);
+    notifyListeners();
+  }
+
+  void clearPendingPlanPlace() => setPendingPlanPlace(null);
+
+  /// Saved trips whose end date is today or later.
+  List<Map<String, dynamic>> get ongoingSavedTrips {
+    return savedTrips
+        .map((t) => Map<String, dynamic>.from(t))
+        .where((t) => t.isOngoingTrip)
+        .toList();
+  }
+
   String? _validateDayPlacesList(List<Map<String, dynamic>> list) {
     if (list.length > maxManualPlacesPerTripDay) return 'max_places_per_day';
 
@@ -921,42 +943,64 @@ class TravelProvider extends ChangeNotifier {
       if (!seenIds.add(id)) return 'place_already_added_same_day';
     }
 
-    if (list.isEmpty) return null;
+    return sameDayPlaceDistanceErrorKey(list);
+  }
 
-    final anchorAddr = placeAddress(list.first);
-    final anchorCountry = _extractCountryFromAddress(anchorAddr);
+  /// Builds enriched place row or returns validation error key.
+  String? _prepareEnrichedPlaceForDay({
+    required List<Map<String, dynamic>> list,
+    required Map<String, dynamic> place,
+    int? scheduledTimeMinutes,
+    bool hotelStayOnDay = false,
+    required Map<String, dynamic> outEnriched,
+  }) {
+    if (list.length >= maxManualPlacesPerTripDay) {
+      return 'max_places_per_day';
+    }
 
-    for (final p in list.skip(1)) {
-      final addr = placeAddress(p);
-      final newCountry = _extractCountryFromAddress(addr);
+    final id = placeFavoriteId(place);
 
-      if (newCountry.isNotEmpty &&
-          anchorCountry.isNotEmpty &&
-          newCountry.toLowerCase() != anchorCountry.toLowerCase()) {
-        return 'different_countries_same_day';
+    if (list.any((p) => placeFavoriteId(p) == id)) {
+      return 'place_already_added_same_day';
+    }
+
+    final effectiveHotel = hotelStayOnDay || isHotel(place);
+
+    if (!effectiveHotel &&
+        (scheduledTimeMinutes == null ||
+            scheduledTimeMinutes < 0 ||
+            scheduledTimeMinutes > 1439)) {
+      return 'activity_time_required';
+    }
+
+    final enriched = Map<String, dynamic>.from(place);
+
+    if (effectiveHotel) {
+      enriched['hotelStayOnDay'] = true;
+      enriched.remove('scheduledTimeMinutes');
+    } else {
+      enriched['hotelStayOnDay'] = false;
+      enriched['scheduledTimeMinutes'] = scheduledTimeMinutes!.clamp(0, 1439);
+
+      for (final existing in list) {
+        if (_placeIsHotelStayInTrip(existing)) continue;
+
+        final em = scheduledTimeMinutesFromTripPlace(existing);
+
+        if (em != null && em == enriched['scheduledTimeMinutes']) {
+          return 'duplicate_activity_time_same_day';
+        }
       }
     }
 
-    String? anchorGov;
+    final trial = List<Map<String, dynamic>>.from(list)..add(enriched);
+    final dayErr = _validateDayPlacesList(trial);
 
-    for (final p in list) {
-      final g = _governorateComparableKey(p);
+    if (dayErr != null) return dayErr;
 
-      if (g.isNotEmpty) {
-        anchorGov = g;
-        break;
-      }
-    }
-
-    if (anchorGov == null) return null;
-
-    for (final p in list) {
-      final gov = _governorateComparableKey(p);
-
-      if (gov.isNotEmpty && gov != anchorGov) {
-        return 'different_governorates_same_day';
-      }
-    }
+    outEnriched
+      ..clear()
+      ..addAll(enriched);
 
     return null;
   }
@@ -994,67 +1038,22 @@ class TravelProvider extends ChangeNotifier {
   }) {
     if (dayNumber < 1 || dayNumber > tripPlanDayCount) return false;
 
-    final id = placeFavoriteId(place);
-
     final list = tripPlanPlacesByDay.putIfAbsent(
       dayNumber,
       () => <Map<String, dynamic>>[],
     );
 
-    if (list.length >= maxManualPlacesPerTripDay) {
-      error = 'max_places_per_day';
-      notifyListeners();
-      return false;
-    }
+    final enriched = <String, dynamic>{};
+    final prepErr = _prepareEnrichedPlaceForDay(
+      list: list,
+      place: place,
+      scheduledTimeMinutes: scheduledTimeMinutes,
+      hotelStayOnDay: hotelStayOnDay,
+      outEnriched: enriched,
+    );
 
-    final exists = list.any((p) => placeFavoriteId(p) == id);
-
-    if (exists) {
-      error = 'place_already_added_same_day';
-      notifyListeners();
-      return false;
-    }
-
-    final effectiveHotel = hotelStayOnDay || isHotel(place);
-
-    if (!effectiveHotel &&
-        (scheduledTimeMinutes == null ||
-            scheduledTimeMinutes < 0 ||
-            scheduledTimeMinutes > 1439)) {
-      error = 'activity_time_required';
-      notifyListeners();
-      return false;
-    }
-
-    final trial = List<Map<String, dynamic>>.from(list);
-    final enriched = Map<String, dynamic>.from(place);
-
-    if (effectiveHotel) {
-      enriched['hotelStayOnDay'] = true;
-      enriched.remove('scheduledTimeMinutes');
-    } else {
-      enriched['hotelStayOnDay'] = false;
-      enriched['scheduledTimeMinutes'] = scheduledTimeMinutes!.clamp(0, 1439);
-
-      for (final existing in list) {
-        if (_placeIsHotelStayInTrip(existing)) continue;
-
-        final em = scheduledTimeMinutesFromTripPlace(existing);
-
-        if (em != null && em == enriched['scheduledTimeMinutes']) {
-          error = 'duplicate_activity_time_same_day';
-          notifyListeners();
-          return false;
-        }
-      }
-    }
-
-    trial.add(enriched);
-
-    final dayErr = _validateDayPlacesList(trial);
-
-    if (dayErr != null) {
-      error = dayErr;
+    if (prepErr != null) {
+      error = prepErr;
       notifyListeners();
       return false;
     }
@@ -1065,6 +1064,106 @@ class TravelProvider extends ChangeNotifier {
     notifyListeners();
     _schedulePersistTripDraft();
 
+    return true;
+  }
+
+  /// Appends [place] to one day of a saved ongoing trip and persists immediately.
+  Future<bool> addPlaceToOngoingSavedTripDay({
+    required String tripId,
+    required int dayNumber,
+    required Map<String, dynamic> place,
+    int? scheduledTimeMinutes,
+    bool hotelStayOnDay = false,
+  }) async {
+    final id = tripId.trim();
+    if (id.isEmpty) {
+      error = 'trip_not_found';
+      notifyListeners();
+      return false;
+    }
+
+    final tripIndex = savedTrips.indexWhere((t) => t['id']?.toString() == id);
+    if (tripIndex < 0) {
+      error = 'trip_not_found';
+      notifyListeners();
+      return false;
+    }
+
+    final trip = Map<String, dynamic>.from(savedTrips[tripIndex]);
+    if (!trip.isOngoingTrip) {
+      error = 'trip_not_found';
+      notifyListeners();
+      return false;
+    }
+
+    final dayCount = tripDaySelectorCount(trip);
+    if (dayNumber < 1 || dayNumber > dayCount) return false;
+
+    final days = parsedDaysFromTrip(trip);
+    while (days.length < dayCount) {
+      days.add(<String, dynamic>{
+        'dayNumber': days.length + 1,
+        'places': <Map<String, dynamic>>[],
+      });
+    }
+
+    Map<String, dynamic> dayMap = days.firstWhere(
+      (d) {
+        final dn = d['dayNumber'];
+        final n = dn is int ? dn : int.tryParse(dn.toString());
+        return n == dayNumber;
+      },
+      orElse: () => <String, dynamic>{},
+    );
+
+    if (dayMap.isEmpty) {
+      dayMap = {
+        'dayNumber': dayNumber,
+        'places': <Map<String, dynamic>>[],
+      };
+      days.add(dayMap);
+    }
+
+    final placesRaw = dayMap['places'];
+    final list = placesRaw is List
+        ? placesRaw
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList()
+        : <Map<String, dynamic>>[];
+
+    final enriched = <String, dynamic>{};
+    final prepErr = _prepareEnrichedPlaceForDay(
+      list: list,
+      place: place,
+      scheduledTimeMinutes: scheduledTimeMinutes,
+      hotelStayOnDay: hotelStayOnDay,
+      outEnriched: enriched,
+    );
+
+    if (prepErr != null) {
+      error = prepErr;
+      notifyListeners();
+      return false;
+    }
+
+    list.add(enriched);
+    _sortTripDayPlacesBySchedule(list);
+    dayMap['places'] = list;
+
+    final start = trip.tripStartDate;
+    if (start != null) {
+      final date = start.add(Duration(days: dayNumber - 1));
+      dayMap['date'] = DateFormat('EEEE, MMMM d, y').format(date);
+    }
+    dayMap['dayNumber'] = dayNumber;
+
+    trip['days'] = days;
+    trip['updatedAt'] = DateTime.now().toUtc().toIso8601String();
+    savedTrips[tripIndex] = trip;
+
+    await _persistSavedTrips();
+    notifyListeners();
     return true;
   }
 
@@ -1426,6 +1525,44 @@ class TravelProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       debugPrint('TravelProvider saveItineraryOffline: $e');
+      return false;
+    }
+  }
+
+  /// Removes a trip from [offlineSavedTrips] only (local SharedPreferences).
+  /// Does not affect [savedTrips] or Firestore.
+  Future<bool> removeItineraryOffline(Map<String, dynamic> trip) async {
+    try {
+      final id = trip['id']?.toString().trim();
+      final start = trip['startDate']?.toString();
+      final end = trip['endDate']?.toString();
+
+      final initialLen = offlineSavedTrips.length;
+
+      if (id != null && id.isNotEmpty) {
+        offlineSavedTrips.removeWhere((t) => t['id']?.toString() == id);
+      } else if (start != null &&
+          end != null &&
+          start.isNotEmpty &&
+          end.isNotEmpty) {
+        offlineSavedTrips.removeWhere(
+          (t) =>
+              t['startDate']?.toString() == start &&
+              t['endDate']?.toString() == end,
+        );
+      } else {
+        return false;
+      }
+
+      if (offlineSavedTrips.length == initialLen) {
+        return false;
+      }
+
+      notifyListeners();
+      await _persistOfflineSavedTripsPrefsOnly();
+      return true;
+    } catch (e) {
+      debugPrint('TravelProvider removeItineraryOffline: $e');
       return false;
     }
   }
