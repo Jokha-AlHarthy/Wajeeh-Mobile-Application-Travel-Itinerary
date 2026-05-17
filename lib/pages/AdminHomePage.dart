@@ -6,6 +6,7 @@ import '../providers/auth_provider.dart' as app_auth;
 import '../widgets/admin_footer.dart';
 import '../providers/theme_provider.dart';
 import '../localization/app_localizations.dart';
+import '../utils/user_profile_image.dart';
 
 class AdminHomePage extends StatelessWidget {
   const AdminHomePage({super.key});
@@ -130,9 +131,10 @@ class AdminHomePage extends StatelessWidget {
   }
 
   ImageProvider _homeProfileProvider(app_auth.AuthProvider auth) {
-    final url = auth.photoUrl ?? "";
-    if (url.isNotEmpty) return NetworkImage(url);
-    return const AssetImage("images/defaultUserProfile.png");
+    return resolveProfileImageProvider(
+      photoUrl: auth.photoUrl,
+      profilePhotoBase64: auth.profilePhotoBase64,
+    );
   }
 
   Widget _trendingCountriesChart() {
