@@ -161,7 +161,7 @@ class _SearchPageState extends State<SearchPage> {
 
       setState(() => _autocompleteLoading = true);
 
-      final travel = context.read<TravelProvider>();
+      final travel = context.watch<TravelProvider>();
       final lang = Localizations.localeOf(context).languageCode;
 
       final rows = await travel.searchPageAutocompleteSuggestions(
@@ -932,13 +932,22 @@ class _SearchPageState extends State<SearchPage> {
             PositionedDirectional(
               top: 12,
               end: 12,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: const BoxDecoration(
-                  color: Colors.white70,
-                  shape: BoxShape.circle,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 32,
+                  minHeight: 32,
                 ),
-                child: const Icon(Icons.favorite_border, size: 18),
+                icon: Icon(
+                  travel.isFavorite(place)
+                      ? Icons.favorite
+                      : Icons.favorite_border,
+                  size: 22,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                onPressed: () {
+                  travel.toggleFavorite(place);
+                },
               ),
             ),
             PositionedDirectional(
