@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../localization/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/user_profile_image.dart';
 import '../providers/travel_provider.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
 import 'package:wajeeh/widgets/place_list_card.dart';
@@ -376,11 +377,10 @@ class _HomePageState extends State<HomePage> {
             children: [
               Consumer<AuthProvider>(
                 builder: (context, auth, _) {
-                  final img =
-                  (auth.photoUrl != null && auth.photoUrl!.isNotEmpty)
-                      ? NetworkImage(auth.photoUrl!)
-                      : const AssetImage("images/defaultUserProfile.png")
-                  as ImageProvider;
+                  final img = resolveProfileImageProvider(
+                    photoUrl: auth.photoUrl,
+                    profilePhotoBase64: auth.profilePhotoBase64,
+                  );
 
                   return CircleAvatar(
                     radius: 22,
