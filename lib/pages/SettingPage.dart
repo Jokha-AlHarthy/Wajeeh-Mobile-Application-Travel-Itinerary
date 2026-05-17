@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wajeeh/widgets/app_footer.dart';
 import '../providers/auth_provider.dart' as myAuth;
+import '../utils/user_profile_image.dart';
 import '../providers/theme_provider.dart';
 import '../localization/app_localizations.dart';
 import 'PrivacyPolicyPage.dart';
@@ -139,11 +140,10 @@ class SettingPage extends StatelessWidget {
                       backgroundColor: Colors.white,
                       child: CircleAvatar(
                         radius: 36,
-                        backgroundImage:
-                            (auth.photoUrl != null && auth.photoUrl!.isNotEmpty)
-                            ? NetworkImage(auth.photoUrl!)
-                            : const AssetImage("images/defaultUserProfile.png")
-                                  as ImageProvider,
+                        backgroundImage: resolveProfileImageProvider(
+                          photoUrl: auth.photoUrl,
+                          profilePhotoBase64: auth.profilePhotoBase64,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 16),
