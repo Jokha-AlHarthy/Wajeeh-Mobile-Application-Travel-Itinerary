@@ -11,6 +11,7 @@ import '../language_provider.dart';
 import '../localization/app_localizations.dart';
 import 'ChangePass.dart';
 import '../widgets/admin_footer.dart';
+import '../utils/user_profile_image.dart';
 
 enum _PhotoTarget { profile, cover }
 
@@ -319,10 +320,10 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
   ImageProvider _profileProvider(app_auth.AuthProvider auth) {
     if (profileFile != null) return FileImage(profileFile!);
 
-    final url = auth.photoUrl ?? "";
-    if (url.isNotEmpty) return NetworkImage(url);
-
-    return const AssetImage("images/defaultUserProfile.png");
+    return resolveProfileImageProvider(
+      photoUrl: auth.photoUrl,
+      profilePhotoBase64: auth.profilePhotoBase64,
+    );
   }
 
   Widget _coverWidget(app_auth.AuthProvider auth) {
@@ -335,18 +336,11 @@ class _AdminProfilePageState extends State<AdminProfilePage> {
       );
     }
 
-    final url = auth.coverUrl ?? "";
-    if (url.isNotEmpty) {
-      return Image.network(
-        url,
-        height: 140,
-        width: double.infinity,
-        fit: BoxFit.cover,
-      );
-    }
-
-    return Image.asset(
-      "images/defaultCover.png",
+    return Image(
+      image: resolveCoverImageProvider(
+        coverUrl: auth.coverUrl,
+        coverPhotoBase64: auth.coverPhotoBase64,
+      ),
       height: 140,
       width: double.infinity,
       fit: BoxFit.cover,
