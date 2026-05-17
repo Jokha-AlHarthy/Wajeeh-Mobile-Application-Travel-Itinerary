@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/place_category_options.dart';
 import '../services/auth_service.dart';
 import '../localization/error_mapper.dart';
+import '../utils/user_profile_image.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _auth = AuthService();
@@ -33,6 +34,8 @@ class AuthProvider extends ChangeNotifier {
 
   String? photoUrl;
   String? coverUrl;
+  String? profilePhotoBase64;
+  String? coverPhotoBase64;
 
   String? location;
   String? gender;
@@ -350,13 +353,21 @@ class AuthProvider extends ChangeNotifier {
 
         photoUrl = (data['photoUrl'] ?? '').toString();
         coverUrl = (data['coverUrl'] ?? '').toString();
+        profilePhotoBase64 = (data['profilePhotoBase64'] ?? '').toString();
+        coverPhotoBase64 = (data['coverPhotoBase64'] ?? '').toString();
         gender = (data['gender'] ?? 'male').toString();
 
         final rawDob = data['dob'];
         dob = rawDob == null ? null : rawDob.toString();
 
-        isDefaultPhoto = (data['isDefaultPhoto'] ?? true) == true;
-        isDefaultCover = (data['isDefaultCover'] ?? true) == true;
+        isDefaultPhoto = !hasCustomProfileImage(
+          photoUrl: photoUrl,
+          profilePhotoBase64: profilePhotoBase64,
+        );
+        isDefaultCover = !hasCustomCoverImage(
+          coverUrl: coverUrl,
+          coverPhotoBase64: coverPhotoBase64,
+        );
 
         if (data['location'] != null &&
             data['location'] is Map &&
@@ -388,6 +399,8 @@ class AuthProvider extends ChangeNotifier {
 
         photoUrl = '';
         coverUrl = '';
+        profilePhotoBase64 = '';
+        coverPhotoBase64 = '';
         gender = 'male';
         dob = null;
 
