@@ -82,3 +82,11 @@ List<String> normalizePreferenceInterestKeys(Iterable<String> raw) {
 
 bool isKnownPlaceCategoryFilterKey(String key) =>
     _placeCategoryFilterKeySet.contains(key.trim());
+
+/// Canonical filter key for Home/Search category chips (Firestore labels, i18n keys, interests).
+String resolveHomeCategoryFilterKey(String raw) =>
+    preferenceInterestToFilterKey(raw) ?? raw.trim();
+
+/// Resolves each selected filter to its canonical key for [TravelProvider] matching.
+List<String> resolveHomeCategoryFilterKeys(Iterable<String> raw) =>
+    raw.map(resolveHomeCategoryFilterKey).toList();
