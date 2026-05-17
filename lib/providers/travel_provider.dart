@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/google_keys.dart';
+import '../constants/place_category_options.dart';
 import '../services/notification_service.dart';
 import '../services/places_service.dart';
 import '../services/price_extraction_service.dart';
@@ -2903,7 +2904,7 @@ class TravelProvider extends ChangeNotifier {
 
     if (loc.isEmpty) return null;
 
-    final fk = filterKey.trim();
+    final fk = resolveHomeCategoryFilterKey(filterKey);
 
     switch (fk) {
       case 'filter_food_restaurants':
@@ -2938,7 +2939,7 @@ class TravelProvider extends ChangeNotifier {
           return '$tail places in $loc';
         }
 
-        return 'tourist attractions $fk in $loc';
+        return null;
     }
   }
 
@@ -3290,6 +3291,7 @@ class TravelProvider extends ChangeNotifier {
     }
 
     final qLower = query.trim().toLowerCase();
+    final resolvedFilters = resolveHomeCategoryFilterKeys(filters);
     final list = <Map<String, dynamic>>[];
     for (final item in source) {
       if (item is! Map) continue;
@@ -3302,8 +3304,8 @@ class TravelProvider extends ChangeNotifier {
 
       if (!_placeMatchesSearchQuery(map, qLower)) continue;
 
-      if (filters.isNotEmpty &&
-          !filters.any((f) => _matchesCategory(map, f))) {
+      if (resolvedFilters.isNotEmpty &&
+          !resolvedFilters.any((f) => _matchesCategory(map, f))) {
         continue;
       }
 
@@ -3341,12 +3343,89 @@ class TravelProvider extends ChangeNotifier {
     return list;
   }
 
+  static bool _isDiningPlaceType(String type) {
+    if (type.contains('barber')) return false;
+
+    return type.contains('restaurant') ||
+        type.contains('food') ||
+        type.contains('cafe') ||
+        type.contains('meal') ||
+        type.contains('bakery') ||
+        type.contains('diner') ||
+        (type.contains('bar') && !type.contains('barber')) ||
+        type.contains('night_club') ||
+        type == 'coffee_shop' ||
+        type.contains('coffee_shop') ||
+        type.contains('sandwich_shop') ||
+        type.contains('donut_shop') ||
+        type.contains('bagel_shop') ||
+        type.contains('ice_cream_shop') ||
+        type.contains('cake_shop') ||
+        type.contains('tea_shop') ||
+        type.contains('juice_shop');
+  }
+
+  static bool _isShoppingPlaceType(String type) {
+    if (_isDiningPlaceType(type)) return false;
+    if (type.contains('restaurant')) return false;
+
+    return type.contains('shopping_mall') ||
+        type.contains('department_store') ||
+        type.contains('supermarket') ||
+        type.contains('grocery') ||
+        type.contains('souvenir') ||
+        type.contains('souq') ||
+        type.contains('souk') ||
+        (type.contains('market') && !type.contains('stock_market')) ||
+        (type.contains('store') && !type.contains('restaurant')) ||
+        type.contains('clothing_store') ||
+        type.contains('shoe_store') ||
+        type.contains('jewelry_store') ||
+        type.contains('home_goods_store') ||
+        type.contains('furniture_store') ||
+        type.contains('book_store') ||
+        type.contains('electronics_store') ||
+        type.contains('convenience_store') ||
+        type.contains('florist') ||
+        type.contains('hardware_store') ||
+        type.contains('shopping');
+  }
+
+  bool _matchesShoppingCategory(
+    Map<String, dynamic> place,
+    List<String> types,
+  ) {
+    if (types.any(_isDiningPlaceType)) return false;
+    if (types.any(_isShoppingPlaceType)) return true;
+
+    final name = placeName(place).toLowerCase();
+    final addr = placeAddress(place).toLowerCase();
+    if (name.contains('restaurant') ||
+        name.contains('cafe') ||
+        name.contains('café')) {
+      return false;
+    }
+
+    const hints = [
+      'souq',
+      'souk',
+      'shopping mall',
+      'shopping center',
+      'shopping centre',
+      'market',
+    ];
+
+    return hints.any((h) => name.contains(h) || addr.contains(h));
+  }
+
   bool _matchesCategory(Map<String, dynamic> place, String filter) {
+    final canonical = resolveHomeCategoryFilterKey(filter);
+
     final types = ((place["types"] as List?) ?? [])
         .map((e) => e.toString().toLowerCase())
         .toList();
 
-    switch (filter) {
+    switch (canonical) {
       case "Hotels & Stays":
       case "filter_hotels_stays":
         return types.any(
@@ -3399,14 +3478,7 @@ class TravelProvider extends ChangeNotifier {
 
       case "Shopping & Souvenirs":
       case "filter_shopping_souvenirs":
-        return types.any(
-          (t) =>
-              t.contains("shopping_mall") ||
-              t.contains("store") ||
-              t.contains("market") ||
-              t.contains("shop") ||
-              t.contains("souvenir"),
-        );
+        return _matchesShoppingCategory(place, types);
 
       case "Museum":
       case "museum":
@@ -3414,7 +3486,7 @@ class TravelProvider extends ChangeNotifier {
         return types.any((t) => t.contains("museum"));
 
       default:
-        final raw = filter.trim().toLowerCase();
+        final raw = canonical.trim().toLowerCase();
         final normalized = raw.replaceAll(' ', '_');
 
         final looksLikePlacesType = RegExp(r'^[a-z_]+$').hasMatch(normalized) &&
