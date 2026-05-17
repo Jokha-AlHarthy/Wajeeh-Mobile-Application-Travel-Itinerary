@@ -6,7 +6,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:twitter_login/twitter_login.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+
+import '../utils/profile_image_codec.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -40,6 +41,8 @@ class AuthService {
         "dob": null,
         "photoUrl": "",
         "coverUrl": "",
+        "profilePhotoBase64": "",
+        "coverPhotoBase64": "",
         "isDefaultPhoto": true,
         "isDefaultCover": true,
         "preferencePromptShown": false,
@@ -104,6 +107,8 @@ class AuthService {
       "dob": null,
       "photoUrl": "",
       "coverUrl": "",
+      "profilePhotoBase64": "",
+      "coverPhotoBase64": "",
       "isDefaultPhoto": true,
       "isDefaultCover": true,
       "preferencePromptShown": false,
@@ -160,6 +165,8 @@ class AuthService {
       "dob": null,
       "photoUrl": user.photoURL ?? "",
       "coverUrl": "",
+      "profilePhotoBase64": "",
+      "coverPhotoBase64": "",
       "isDefaultPhoto": user.photoURL == null || user.photoURL!.isEmpty,
       "isDefaultCover": true,
       "preferencePromptShown": false,
@@ -201,11 +208,8 @@ class AuthService {
     } else if (domain == "icloud.com") {
       selectedService = iCloudService;
     } else if (domain.endsWith('.edu')) {
-      // Prefer the UTAS/academic service for .edu, but allow fallback.
       selectedService = utasService;
     } else {
-      // EmailJS service selection should not block valid recipient domains
-      // (e.g. academic .edu). Default to the Gmail service for all others.
       selectedService = gmailServie;
     }
 
@@ -236,7 +240,6 @@ class AuthService {
     var res = await sendWith(selectedService);
     if (res.statusCode >= 200 && res.statusCode < 300) return;
 
-    // Retry with Gmail service once (common reliable fallback).
     if (selectedService != gmailServie) {
       res = await sendWith(gmailServie);
       if (res.statusCode >= 200 && res.statusCode < 300) return;
@@ -251,33 +254,33 @@ class AuthService {
     File? profileImageFile,
     File? coverImageFile,
   }) async {
-    String? newPhotoUrl;
-    String? newCoverUrl;
-
-    if (profileImageFile != null) {
-      final ref = FirebaseStorage.instance.ref("users/$uid/profile.jpg");
-      await ref.putFile(profileImageFile);
-      newPhotoUrl = await ref.getDownloadURL();
-    }
-
-    if (coverImageFile != null) {
-      final ref = FirebaseStorage.instance.ref("users/$uid/cover.jpg");
-      await ref.putFile(coverImageFile);
-      newCoverUrl = await ref.getDownloadURL();
-    }
-
     final merged = <String, dynamic>{
       ...data,
       "updatedAt": FieldValue.serverTimestamp(),
     };
 
-    if (newPhotoUrl != null) {
-      merged["photoUrl"] = newPhotoUrl;
+    if (profileImageFile != null) {
+      final encoded = await ProfileImageCodec.encodeFile(
+        profileImageFile,
+        maxDimension: 512,
+      );
+      if (encoded == null) {
+        throw Exception('profile-image-encode-failed');
+      }
+      merged["profilePhotoBase64"] = encoded;
       merged["isDefaultPhoto"] = false;
     }
 
-    if (newCoverUrl != null) {
-      merged["coverUrl"] = newCoverUrl;
+    if (coverImageFile != null) {
+      final encoded = await ProfileImageCodec.encodeFile(
+        coverImageFile,
+        maxDimension: 900,
+        quality: 68,
+      );
+      if (encoded == null) {
+        throw Exception('cover-image-encode-failed');
+      }
+      merged["coverPhotoBase64"] = encoded;
       merged["isDefaultCover"] = false;
     }
 
@@ -288,23 +291,17 @@ class AuthService {
   }
 
   Future<void> deleteProfilePhoto(String uid) async {
-    try {
-      await FirebaseStorage.instance.ref("users/$uid/profile.jpg").delete();
-    } catch (_) {}
-
     await _db.collection("users").doc(uid).set({
       "photoUrl": "",
+      "profilePhotoBase64": "",
       "isDefaultPhoto": true,
     }, SetOptions(merge: true));
   }
 
   Future<void> deleteCoverPhoto(String uid) async {
-    try {
-      await FirebaseStorage.instance.ref("users/$uid/cover.jpg").delete();
-    } catch (_) {}
-
     await _db.collection("users").doc(uid).set({
       "coverUrl": "",
+      "coverPhotoBase64": "",
       "isDefaultCover": true,
     }, SetOptions(merge: true));
   }
