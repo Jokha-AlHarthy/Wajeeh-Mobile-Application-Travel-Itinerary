@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../localization/app_localizations.dart';
 import '../services/functions_service.dart';
+import '../utils/user_profile_image.dart';
 
 class AdminDashboardPage extends StatefulWidget {
   const AdminDashboardPage({super.key});
@@ -57,26 +58,55 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
     return name.isEmpty ? "—" : name;
   }
 
+  Map<String, dynamic> _userDocData(QueryDocumentSnapshot doc) {
+    final raw = doc.data();
+    if (raw is Map<String, dynamic>) return raw;
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return {};
+  }
+
+  String _displayFullName(Map<String, dynamic> data, String docId) {
+    final name = (data["fullName"] ?? "").toString().trim();
+    if (name.isNotEmpty) return name;
+    final email = (data["email"] ?? "").toString().trim();
+    if (email.isNotEmpty) return email;
+    return docId;
+  }
+
+  String _displayEmail(Map<String, dynamic> data) {
+    final email = (data["email"] ?? "").toString().trim();
+    return email.isEmpty ? "—" : email;
+  }
+
+  String _displayRole(BuildContext context, Map<String, dynamic> data) {
+    final roleKey = (data["role"] ?? "user").toString().trim().toLowerCase();
+    if (roleKey == "admin" || roleKey == "user") {
+      return context.tr(roleKey);
+    }
+    return roleKey.isEmpty ? context.tr("user") : roleKey;
+  }
+
   Iterable<QueryDocumentSnapshot> _usersForAutocomplete() sync* {
     final q = _normalizeQuery(_searchController.text);
     final docs = _showActive == null
         ? _usersCache
         : _usersCache.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = _userDocData(doc);
             final Timestamp? lastSeen = data["lastSeen"];
             return _isUserActive(lastSeen) == _showActive;
           });
 
     for (final doc in docs) {
-      final data = doc.data() as Map<String, dynamic>;
+      final data = _userDocData(doc);
       final name = (data["fullName"] ?? "").toString().toLowerCase();
+      final email = (data["email"] ?? "").toString().toLowerCase();
 
       if (q.isEmpty) {
         yield doc;
         continue;
       }
 
-      if (name.contains(q)) {
+      if (name.contains(q) || email.contains(q)) {
         yield doc;
       }
     }
@@ -651,18 +681,17 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
         _usersCache = allUsers;
 
         final users = (_showActive == null ? allUsers : allUsers.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
+          final data = _userDocData(doc);
           final Timestamp? lastSeen = data["lastSeen"];
           return _isUserActive(lastSeen) == _showActive;
         })).where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
+          final data = _userDocData(doc);
           final name = (data["fullName"] ?? "").toString().toLowerCase();
+          final email = (data["email"] ?? "").toString().toLowerCase();
 
           if (searchQuery.isEmpty) return true;
-          // If the admin picked a suggestion, enforce exact match to show only that user.
-          if (name == searchQuery) return true;
-          // While typing, allow partial match.
-          return name.contains(searchQuery);
+          if (name == searchQuery || email == searchQuery) return true;
+          return name.contains(searchQuery) || email.contains(searchQuery);
         }).toList();
 
         return FutureBuilder<Map<String, int>>(
@@ -671,17 +700,30 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
             final tripCounts = tripsSnap.data ?? const <String, int>{};
             return Column(
               children: users.map((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = _userDocData(doc);
 
-            final String fullName = data["fullName"] ?? "";
-            final String email = data["email"] ?? "";
-            final String roleKey = data["role"] ?? "";
-            final String role = context.tr(roleKey);
-            final String? photoURL = data["photoUrl"];
-            final Timestamp? createdAt = data["createdAt"];
-            final Timestamp? lastSeen = data["lastSeen"];
+            final String fullName = _displayFullName(data, doc.id);
+            final String email = _displayEmail(data);
+            final String role = _displayRole(context, data);
+            final String? photoURL = data["photoUrl"]?.toString();
+            final String? profileB64 =
+                data["profilePhotoBase64"]?.toString();
+            final Timestamp? createdAt = data["createdAt"] is Timestamp
+                ? data["createdAt"] as Timestamp
+                : null;
+            final Timestamp? lastSeen = data["lastSeen"] is Timestamp
+                ? data["lastSeen"] as Timestamp
+                : null;
 
             final bool isActiveUser = _isUserActive(lastSeen);
+            final avatar = resolveProfileImageProvider(
+              photoUrl: photoURL,
+              profilePhotoBase64: profileB64,
+            );
+            final showAvatarIcon = !hasCustomProfileImage(
+              photoUrl: photoURL,
+              profilePhotoBase64: profileB64,
+            );
 
             final joinedDate = createdAt != null
                 ? "${createdAt.toDate().day}/${createdAt.toDate().month}/${createdAt.toDate().year}"
@@ -718,11 +760,8 @@ class _AdminDashboardPageState extends State<AdminDashboardPage> {
                       CircleAvatar(
                         radius: 28,
                         backgroundColor: Colors.grey.shade300,
-                        backgroundImage:
-                            (photoURL != null && photoURL.isNotEmpty)
-                            ? NetworkImage(photoURL)
-                            : null,
-                        child: (photoURL == null || photoURL.isEmpty)
+                        backgroundImage: showAvatarIcon ? null : avatar,
+                        child: showAvatarIcon
                             ? const Icon(Icons.person, color: Colors.white)
                             : null,
                       ),
