@@ -10,7 +10,10 @@ import 'notifications_screen.dart';
 import '../localization/app_localizations.dart';
 import '../services/notification_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;enum _PhotoTarget { profile, cover }
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
+import '../utils/user_profile_image.dart';
+
+enum _PhotoTarget { profile, cover }
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -341,17 +344,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
           fit: BoxFit.cover,
         );
       }
-      final url = auth.coverUrl ?? "";
-      if (url.isNotEmpty) {
-        return Image.network(
-          url,
-          height: 150,
-          width: double.infinity,
-          fit: BoxFit.cover,
-        );
-      }
-      return Image.asset(
-        "images/defaultCover.png",
+      return Image(
+        image: resolveCoverImageProvider(
+          coverUrl: auth.coverUrl,
+          coverPhotoBase64: auth.coverPhotoBase64,
+        ),
         height: 150,
         width: double.infinity,
         fit: BoxFit.cover,
@@ -360,9 +357,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     ImageProvider profileProvider() {
       if (profileFile != null) return FileImage(profileFile!);
-      final url = auth.photoUrl ?? "";
-      if (url.isNotEmpty) return NetworkImage(url);
-      return const AssetImage("images/defaultUserProfile.png");
+      return resolveProfileImageProvider(
+        photoUrl: auth.photoUrl,
+        profilePhotoBase64: auth.profilePhotoBase64,
+      );
     }
 
     return Scaffold(
