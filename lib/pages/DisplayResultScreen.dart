@@ -377,7 +377,7 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final travel = context.read<TravelProvider>();
+    final travel = context.watch<TravelProvider>();
     final title = travel.placeName(widget.place);
     final address = travel.placeAddress(widget.place);
     final description = travel.placeDescription(widget.place);
@@ -584,10 +584,25 @@ class _DisplayResultScreenState extends State<DisplayResultScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
-                            Icons.favorite_border_rounded,
-                            size: 24,
+                          IconButton(
+                            tooltip: travel.isFavorite(widget.place)
+                                ? 'Remove from favorite'
+                                : 'Add to favorite',
+                            icon: Icon(
+                              travel.isFavorite(widget.place)
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 24,
+                            ),
                             color: theme.colorScheme.primary,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
+                            onPressed: () {
+                              travel.toggleFavorite(widget.place);
+                            },
                           ),
                           const SizedBox(width: 8),
                           IconButton(
