@@ -46,6 +46,8 @@ String mapErrorToKey(String code) {
       return 'error_no_otp_email';
     case 'not-logged-in':
       return 'error_not_logged_in';
+    case 'permission-denied':
+      return 'error_operation_not_allowed';
     default:
       return 'error_generic';
   }
