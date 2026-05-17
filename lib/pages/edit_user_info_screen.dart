@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 import '../localization/app_localizations.dart';
 import '../localization/error_mapper.dart';
-import '../services/functions_service.dart';
 
 class EditUserInfoScreen extends StatefulWidget {
   final String uid;
@@ -27,7 +27,6 @@ class _EditUserInfoScreenState extends State<EditUserInfoScreen> {
   String _selectedRole = "user";
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final _functions = FunctionsService.instance;
 
   @override
   void initState() {
@@ -284,9 +283,17 @@ class _EditUserInfoScreenState extends State<EditUserInfoScreen> {
   Future<void> _deleteUser() async {
     final deletedText = context.tr("user_deleted_success");
 
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUid != null && currentUid == widget.uid) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr('error_operation_not_allowed'))),
+      );
+      return;
+    }
+
     try {
-      final callable = _functions.httpsCallable('deleteUserByAdmin');
-      await callable.call({'uid': widget.uid});
+      await _firestore.collection('users').doc(widget.uid).delete();
 
       if (!mounted) return;
 
@@ -295,6 +302,12 @@ class _EditUserInfoScreenState extends State<EditUserInfoScreen> {
       );
 
       Navigator.pop(context);
+    } on FirebaseException catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(context.tr(mapErrorToKey(e.code)))),
+      );
     } catch (e) {
       if (!mounted) return;
 
