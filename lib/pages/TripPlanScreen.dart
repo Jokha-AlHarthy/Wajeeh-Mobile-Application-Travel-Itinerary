@@ -6,6 +6,7 @@ import 'package:wajeeh/widgets/app_footer.dart';
 import '../services/notification_service.dart';
 import '../localization/app_localizations.dart';
 import '../providers/auth_provider.dart';
+import '../utils/user_profile_image.dart';
 import '../providers/travel_provider.dart';
 import '../services/itinerary_walkthrough.dart';
 import '../services/plan_place_trip_flow.dart';
@@ -540,10 +541,10 @@ class _TripPlanScreenState extends State<TripPlanScreen> {
             alignment: AlignmentDirectional.centerStart,
             child: Consumer<AuthProvider>(
               builder: (context, auth, _) {
-                final img = (auth.photoUrl != null && auth.photoUrl!.isNotEmpty)
-                    ? NetworkImage(auth.photoUrl!)
-                    : const AssetImage('images/defaultUserProfile.png')
-                as ImageProvider;
+                final img = resolveProfileImageProvider(
+                  photoUrl: auth.photoUrl,
+                  profilePhotoBase64: auth.profilePhotoBase64,
+                );
 
                 return CircleAvatar(
                   radius: 22,
