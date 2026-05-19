@@ -351,14 +351,16 @@ class _FloatingAiChatWidgetState extends State<FloatingAiChatWidget>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final chat = context.read<AiChatService>();
     final key = widget.geminiApiKey?.trim();
     if (key != null && key.isNotEmpty) {
       final ors = widget.openRouteServiceApiKey?.trim();
-      context.read<AiChatService>().configure(
-            geminiApiKey: key,
-            openRouteServiceApiKey:
-                (ors == null || ors.isEmpty) ? null : ors,
-          );
+      chat.configure(
+        geminiApiKey: key,
+        openRouteServiceApiKey: (ors == null || ors.isEmpty) ? null : ors,
+      );
+    } else if (!chat.isConfigured) {
+      chat.maybeConfigureFromEnvironment();
     }
     if (!_boundSave) {
       _boundSave = true;
