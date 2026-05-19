@@ -32,6 +32,23 @@ class AuthProvider extends ChangeNotifier {
   /// True when Firebase has a signed-in user (regular user session).
   bool get isAuthenticated => FirebaseAuth.instance.currentUser != null;
 
+  /// True after the user completes sign-in and reaches the main app (home/dashboard).
+  /// Stays false during registration/OTP even when [isAuthenticated] is true.
+  bool _mainAppUnlocked = false;
+  bool get mainAppUnlocked => _mainAppUnlocked;
+
+  void unlockMainApp() {
+    if (_mainAppUnlocked) return;
+    _mainAppUnlocked = true;
+    notifyListeners();
+  }
+
+  void lockMainApp() {
+    if (!_mainAppUnlocked) return;
+    _mainAppUnlocked = false;
+    notifyListeners();
+  }
+
   String? photoUrl;
   String? coverUrl;
   String? profilePhotoBase64;
@@ -133,6 +150,7 @@ class AuthProvider extends ChangeNotifier {
     required String phone,
   }) async {
     try {
+      lockMainApp();
       isLoading = true;
       notifyListeners();
 
@@ -203,6 +221,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> googleLogin() async {
     try {
+      lockMainApp();
       error = null;
       isLoading = true;
       notifyListeners();
@@ -249,6 +268,7 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> twitterLogin() async {
     try {
+      lockMainApp();
       error = null;
       isLoading = true;
       notifyListeners();
@@ -553,6 +573,8 @@ class AuthProvider extends ChangeNotifier {
       }, SetOptions(merge: true));
     }
     await _auth.logout();
+    lockMainApp();
+    notifyListeners();
   }
 
   String _messageFromError(Object e) {
