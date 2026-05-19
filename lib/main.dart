@@ -101,13 +101,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider.value(value: languageProvider),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => TravelProvider()),
-        ChangeNotifierProvider(
-          create: (_) {
-            final ai = AiChatService();
-            ai.maybeConfigureFromEnvironment();
-            return ai;
-          },
-        ),
+        ChangeNotifierProvider(create: (_) => AiChatService()),
       ],
       child: _TravelUserScope(
         child: Consumer2<ThemeProvider, LanguageProvider>(
@@ -335,6 +329,7 @@ class _StartupRouterState extends State<_StartupRouter> {
       final auth = context.read<AuthProvider>();
       await auth.loadUserProfile();
       if (!mounted) return const SizedBox.shrink();
+      auth.unlockMainApp();
       return auth.isAdmin ? const AdminHomePage() : const HomePage();
     }
 
