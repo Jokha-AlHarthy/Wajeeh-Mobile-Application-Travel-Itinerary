@@ -56,6 +56,33 @@ class UserAiChatOverlay extends StatelessWidget {
     return n.startsWith('/admin') || n.contains('admin');
   }
 
+  /// Routes for splash, onboarding, welcome, login, register, OTP, etc.
+  bool _isPreAuthenticationRoute(String? name) {
+    if (name == null || name.isEmpty) return true;
+    switch (name) {
+      case '/welcome':
+      case '/login':
+      case '/register':
+      case '/forgot':
+      case '/otp':
+      case '/onboarding2':
+      case '/onboarding3':
+      case '/language':
+      case '/location':
+      case '/privacy':
+      case '/terms':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  void _syncMainAppUnlockForRoute(BuildContext context, String? routeName) {
+    if (routeName == '/home' || routeName == '/adminHome') {
+      context.read<AuthProvider>().unlockMainApp();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -63,13 +90,19 @@ class UserAiChatOverlay extends StatelessWidget {
     return ValueListenableBuilder<String?>(
       valueListenable: routeNameListenable,
       builder: (context, routeName, _) {
+        _syncMainAppUnlockForRoute(context, routeName);
+
         final hide = auth.isAdmin || _isAdminRouteName(routeName);
+        final onPreAuthScreen = _isPreAuthenticationRoute(routeName);
 
         final mq = MediaQuery.of(context);
         // Sit above system inset + typical bottom nav (AppFooter uses a tall center control).
         final fabBottom = mq.padding.bottom + 96;
 
-        final showFab = !hide && auth.isAuthenticated;
+        final showFab = auth.isAuthenticated &&
+            auth.mainAppUnlocked &&
+            !hide &&
+            !onPreAuthScreen;
 
         return Stack(
           children: [
